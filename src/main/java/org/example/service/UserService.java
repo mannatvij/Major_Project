@@ -1,6 +1,7 @@
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.ChangePasswordRequest;
 import org.example.dto.ProfileUpdateRequest;
 import org.example.dto.RegisterRequest;
 import org.example.dto.UserProfileResponse;
@@ -52,18 +53,20 @@ public class UserService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }
 
-    /** Returns the profile of the currently authenticated user (resolved from JWT subject). */
+    /** Returns the full profile of the currently authenticated user. */
     public UserProfileResponse getProfile(String username) {
         return toProfileResponse(findByUsername(username));
     }
 
     /**
-     * Updates username and/or email for the authenticated user.
-     * Validates uniqueness before saving.
+     * Updates common + role-specific profile fields for the authenticated user.
+     * Username uniqueness is validated before saving.
+     * Note: changing username invalidates the current JWT — the client should re-login.
      */
     public UserProfileResponse updateProfile(String currentUsername, ProfileUpdateRequest request) {
         User user = findByUsername(currentUsername);
 
+        // ── Common fields ─────────────────────────────────────────────────────
         if (request.getUsername() != null && !request.getUsername().isBlank()
                 && !request.getUsername().equals(user.getUsername())) {
             if (userRepository.existsByUsername(request.getUsername())) {
@@ -80,7 +83,42 @@ public class UserService {
             user.setEmail(request.getEmail());
         }
 
+        // ── Patient-specific fields ───────────────────────────────────────────
+        if (user instanceof Patient patient) {
+            if (request.getAge() != null)           patient.setAge(request.getAge());
+            if (request.getGender() != null)        patient.setGender(request.getGender());
+            if (request.getBloodGroup() != null)    patient.setBloodGroup(request.getBloodGroup());
+            if (request.getMedicalHistory() != null) patient.setMedicalHistory(request.getMedicalHistory());
+        }
+
+        // ── Doctor-specific fields ────────────────────────────────────────────
+        if (user instanceof Doctor doctor) {
+            if (request.getSpecialization() != null) doctor.setSpecialization(request.getSpecialization());
+            if (request.getExperience() != null)     doctor.setExperience(request.getExperience());
+            if (request.getQualification() != null)  doctor.setQualification(request.getQualification());
+            if (request.getFees() != null)           doctor.setFees(request.getFees());
+        }
+
         return toProfileResponse(userRepository.save(user));
+    }
+
+    /**
+     * Changes the password for the authenticated user.
+     * Verifies currentPassword before encoding and saving the new one.
+     */
+    public void changePassword(String username, ChangePasswordRequest request) {
+        User user = findByUsername(username);
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 6) {
+            throw new RuntimeException("New password must be at least 6 characters");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
     }
 
     /** Admin-only: fetch any user by their MongoDB ID. */
@@ -91,12 +129,28 @@ public class UserService {
     }
 
     private UserProfileResponse toProfileResponse(User user) {
-        return new UserProfileResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole() != null ? user.getRole().name() : null,
-                user.getCreatedAt()
-        );
+        UserProfileResponse r = new UserProfileResponse();
+        r.setId(user.getId());
+        r.setUsername(user.getUsername());
+        r.setEmail(user.getEmail());
+        r.setRole(user.getRole() != null ? user.getRole().name() : null);
+        r.setCreatedAt(user.getCreatedAt());
+
+        if (user instanceof Patient p) {
+            r.setAge(p.getAge() == 0 ? null : p.getAge());
+            r.setGender(p.getGender());
+            r.setBloodGroup(p.getBloodGroup());
+            r.setMedicalHistory(p.getMedicalHistory());
+        }
+
+        if (user instanceof Doctor d) {
+            r.setSpecialization(d.getSpecialization());
+            r.setExperience(d.getExperience() == 0 ? null : d.getExperience());
+            r.setQualification(d.getQualification());
+            r.setFees(d.getFees() == 0.0 ? null : d.getFees());
+            r.setRating(d.getRating() == 0.0 ? null : d.getRating());
+        }
+
+        return r;
     }
 }

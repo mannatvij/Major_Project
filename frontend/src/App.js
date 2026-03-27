@@ -15,9 +15,7 @@ const BookAppointmentPage     = React.lazy(() => import('./pages/BookAppointment
 const PatientAppointmentsPage = React.lazy(() => import('./pages/PatientAppointmentsPage'));
 const DoctorAppointmentsPage  = React.lazy(() => import('./pages/DoctorAppointmentsPage'));
 const DoctorAvailabilityPage  = React.lazy(() => import('./pages/DoctorAvailabilityPage'));
-
-// ─── Placeholder ──────────────────────────────────────────────────────────────
-const ProfilePage = () => <Box sx={{ p: 3 }}>Profile Page</Box>;
+const ProfilePage             = React.lazy(() => import('./pages/ProfilePage'));
 
 // ─── Loading spinner ──────────────────────────────────────────────────────────
 function PageLoader() {

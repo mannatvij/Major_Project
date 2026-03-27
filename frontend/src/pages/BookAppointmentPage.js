@@ -2,69 +2,100 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Card, CardContent, TextField, Button,
-  Typography, Alert, Grid, Box, Chip, Divider, CircularProgress,
+  Typography, Alert, Grid, Box, Chip, Divider,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CurrencyRupeeIcon from '@mui/icons-material/CurrencyRupee';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { doctorAPI, appointmentAPI } from '../services/api';
+import { useSnackbar } from '../context/SnackbarContext';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorMessage from '../components/ErrorMessage';
+
+// Group ISO slot strings by calendar date (YYYY-MM-DD)
+function groupSlotsByDay(slots) {
+  const groups = {};
+  (slots ?? []).forEach((iso) => {
+    const d = new Date(iso);
+    if (d < new Date()) return; // skip past slots
+    const key = d.toISOString().split('T')[0];
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(iso);
+  });
+  return groups;
+}
+
+function fmtDay(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-IN', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('en-IN', { timeStyle: 'short' });
+}
 
 export default function BookAppointmentPage() {
   const { doctorId } = useParams();
-  const navigate = useNavigate();
+  const navigate     = useNavigate();
+  const { success }  = useSnackbar();
 
   const [doctor, setDoctor]               = useState(null);
   const [doctorLoading, setDoctorLoading] = useState(true);
   const [doctorError, setDoctorError]     = useState('');
 
+  const [selectedSlot, setSelectedSlot]   = useState('');   // ISO string
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentTime, setAppointmentTime] = useState('');
-  const [symptoms, setSymptoms]               = useState('');
-  const [formError, setFormError]             = useState('');
-  const [booked, setBooked]                   = useState(null); // holds AppointmentResponse
-  const [submitting, setSubmitting]           = useState(false);
+  const [symptoms, setSymptoms]           = useState('');
+  const [formError, setFormError]         = useState('');
+  const [booked, setBooked]               = useState(null);
+  const [submitting, setSubmitting]       = useState(false);
 
-  // Today's date string for min= attribute on date picker
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    const fetchDoctor = async () => {
-      try {
-        const { data } = await doctorAPI.getById(doctorId);
-        setDoctor(data);
-      } catch (err) {
-        setDoctorError('Could not load doctor details. Please go back and try again.');
-      } finally {
-        setDoctorLoading(false);
-      }
-    };
-    fetchDoctor();
+    doctorAPI.getById(doctorId)
+      .then(({ data }) => setDoctor(data))
+      .catch(() => setDoctorError('Could not load doctor details. Please go back and try again.'))
+      .finally(() => setDoctorLoading(false));
   }, [doctorId]);
+
+  const handleSlotClick = (iso) => {
+    const d = new Date(iso);
+    setSelectedSlot(iso);
+    setAppointmentDate(d.toISOString().split('T')[0]);
+    setAppointmentTime(d.toTimeString().slice(0, 5));
+    setFormError('');
+  };
 
   const validate = () => {
     if (!appointmentDate) return 'Please select a date.';
-    if (appointmentDate < today) return 'Appointment date must be today or in the future.';
+    if (appointmentDate < today) return 'Appointment must be in the future.';
     if (!appointmentTime) return 'Please select a time.';
     if (!symptoms.trim()) return 'Please describe your symptoms.';
+    if (symptoms.trim().length < 5) return 'Symptoms must be at least 5 characters.';
     return '';
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const validationError = validate();
-    if (validationError) { setFormError(validationError); return; }
+    const err = validate();
+    if (err) { setFormError(err); return; }
 
     setFormError('');
     setSubmitting(true);
     try {
-      const dateTime = `${appointmentDate}T${appointmentTime}:00`;
       const { data } = await appointmentAPI.create({
         doctorId,
-        dateTime,
+        dateTime: `${appointmentDate}T${appointmentTime}:00`,
         symptoms: symptoms.trim(),
       });
       setBooked(data);
-      setTimeout(() => navigate('/dashboard/appointments'), 4000);
+      success('Appointment booked successfully!');
+      setTimeout(() => navigate('/dashboard/appointments'), 3000);
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to book appointment. Please try again.');
     } finally {
@@ -72,18 +103,12 @@ export default function BookAppointmentPage() {
     }
   };
 
-  if (doctorLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (doctorLoading) return <LoadingSpinner message="Loading doctor details…" />;
 
   if (doctorError) {
     return (
       <Container maxWidth="sm" sx={{ mt: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>{doctorError}</Alert>
+        <ErrorMessage message={doctorError} />
         <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/dashboard/doctors')}>
           Back to Doctors
         </Button>
@@ -91,14 +116,12 @@ export default function BookAppointmentPage() {
     );
   }
 
+  const slotGroups = groupSlotsByDay(doctor?.availableSlots);
+  const hasDays    = Object.keys(slotGroups).length > 0;
+
   return (
     <Container maxWidth="md">
-      {/* Back button */}
-      <Button
-        startIcon={<ArrowBackIcon />}
-        onClick={() => navigate('/dashboard/doctors')}
-        sx={{ mb: 2, textTransform: 'none' }}
-      >
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/dashboard/doctors')} sx={{ mb: 2 }}>
         Back to Doctors
       </Button>
 
@@ -107,31 +130,31 @@ export default function BookAppointmentPage() {
       </Typography>
 
       <Grid container spacing={3}>
-        {/* Doctor info card */}
+        {/* ── Doctor info ──────────────────────────────────────────────── */}
         <Grid item xs={12} md={4}>
-          <Card elevation={2} sx={{ bgcolor: '#e3f2fd' }}>
+          <Card elevation={2} sx={{ bgcolor: '#e3f2fd', height: '100%' }}>
             <CardContent>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Dr. {doctor?.name}
               </Typography>
               {doctor?.specialization && (
-                <Chip
-                  label={doctor.specialization}
-                  icon={<LocalHospitalIcon />}
-                  color="primary"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
+                <Chip label={doctor.specialization} icon={<LocalHospitalIcon />}
+                  color="primary" size="small" sx={{ mb: 2 }} />
               )}
               {doctor?.experience != null && (
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   Experience: {doctor.experience} years
                 </Typography>
               )}
+              {doctor?.qualification && (
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  {doctor.qualification}
+                </Typography>
+              )}
               {doctor?.fees != null && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-                  <CurrencyRupeeIcon fontSize="small" sx={{ color: '#2e7d32' }} />
-                  <Typography variant="body1" fontWeight="bold" color="#2e7d32">
+                  <CurrencyRupeeIcon fontSize="small" color="success" />
+                  <Typography variant="body1" fontWeight="bold" color="success.main">
                     ₹{doctor.fees} per consultation
                   </Typography>
                 </Box>
@@ -140,7 +163,7 @@ export default function BookAppointmentPage() {
           </Card>
         </Grid>
 
-        {/* Booking form */}
+        {/* ── Booking form ─────────────────────────────────────────────── */}
         <Grid item xs={12} md={8}>
           <Card elevation={2}>
             <CardContent>
@@ -149,34 +172,15 @@ export default function BookAppointmentPage() {
               </Typography>
               <Divider sx={{ mb: 2 }} />
 
-              {/* Available slots hint */}
-              {doctor?.availableSlots?.length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Available slots — click to prefill:
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {doctor.availableSlots.slice(0, 8).map((iso) => {
-                      const d   = new Date(iso);
-                      const dateStr = d.toISOString().split('T')[0];
-                      const timeStr = d.toTimeString().slice(0, 5);
-                      const label   = d.toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
-                      return (
-                        <Chip key={iso} label={label} size="small" variant="outlined"
-                          color="primary" clickable disabled={!!booked}
-                          onClick={() => { setAppointmentDate(dateStr); setAppointmentTime(timeStr); }} />
-                      );
-                    })}
-                  </Box>
-                </Box>
-              )}
-              <Divider sx={{ mb: 3 }} />
-
+              {/* Booked confirmation */}
               {booked && (
                 <Box sx={{ mb: 3, p: 2, bgcolor: '#e8f5e9', borderRadius: 2, border: '1px solid #a5d6a7' }}>
-                  <Typography variant="subtitle1" fontWeight="bold" color="#2e7d32" gutterBottom>
-                    Appointment Booked!
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <CheckCircleIcon color="success" />
+                    <Typography variant="subtitle1" fontWeight="bold" color="success.main">
+                      Appointment Booked!
+                    </Typography>
+                  </Box>
                   <Typography variant="body2">Doctor: Dr. {booked.doctorName}</Typography>
                   <Typography variant="body2">
                     Date &amp; Time: {new Date(booked.dateTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -186,13 +190,50 @@ export default function BookAppointmentPage() {
                     <Chip label="PENDING" color="warning" size="small" />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
-                    Awaiting confirmation from Dr. {booked.doctorName}. Redirecting to your appointments…
+                    Redirecting to your appointments…
                   </Typography>
                 </Box>
               )}
 
+              {/* Slot picker */}
+              {hasDays && !booked && (
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                    <AccessTimeIcon fontSize="small" color="primary" />
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      Available Time Slots
+                    </Typography>
+                  </Box>
+                  {Object.entries(slotGroups).map(([day, daySlots]) => (
+                    <Box key={day} sx={{ mb: 2 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                        {fmtDay(day)}
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {daySlots.map((iso) => {
+                          const isSelected = selectedSlot === iso;
+                          return (
+                            <Chip
+                              key={iso}
+                              label={fmtTime(iso)}
+                              size="small"
+                              variant={isSelected ? 'filled' : 'outlined'}
+                              color="primary"
+                              clickable
+                              onClick={() => handleSlotClick(iso)}
+                              sx={{ fontWeight: isSelected ? 700 : 400 }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  ))}
+                  <Divider sx={{ mt: 2, mb: 2 }} />
+                </Box>
+              )}
+
               {formError && (
-                <Alert severity="error" sx={{ mb: 3 }}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setFormError('')}>
                   {formError}
                 </Alert>
               )}
@@ -208,8 +249,9 @@ export default function BookAppointmentPage() {
                       InputLabelProps={{ shrink: true }}
                       inputProps={{ min: today }}
                       value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
+                      onChange={(e) => { setAppointmentDate(e.target.value); setSelectedSlot(''); }}
                       disabled={!!booked}
+                      size="medium"
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -220,8 +262,9 @@ export default function BookAppointmentPage() {
                       required
                       InputLabelProps={{ shrink: true }}
                       value={appointmentTime}
-                      onChange={(e) => setAppointmentTime(e.target.value)}
+                      onChange={(e) => { setAppointmentTime(e.target.value); setSelectedSlot(''); }}
                       disabled={!!booked}
+                      size="medium"
                     />
                   </Grid>
                   <Grid item xs={12}>
@@ -231,14 +274,13 @@ export default function BookAppointmentPage() {
                       rows={4}
                       fullWidth
                       required
-                      placeholder="Describe your symptoms or reason for the appointment..."
+                      placeholder="Describe your symptoms or reason for the appointment…"
                       value={symptoms}
                       onChange={(e) => setSymptoms(e.target.value)}
                       disabled={!!booked}
+                      size="medium"
                     />
                   </Grid>
-
-                  {/* Total fees (read-only) */}
                   {doctor?.fees != null && (
                     <Grid item xs={12}>
                       <TextField
@@ -247,11 +289,11 @@ export default function BookAppointmentPage() {
                         fullWidth
                         InputProps={{ readOnly: true }}
                         InputLabelProps={{ shrink: true }}
-                        sx={{ bgcolor: '#f9f9f9' }}
+                        size="medium"
+                        sx={{ bgcolor: 'grey.50' }}
                       />
                     </Grid>
                   )}
-
                   <Grid item xs={12}>
                     <Button
                       type="submit"
@@ -259,9 +301,9 @@ export default function BookAppointmentPage() {
                       size="large"
                       fullWidth
                       disabled={submitting || !!booked}
-                      sx={{ textTransform: 'none', bgcolor: '#1976d2', py: 1.5 }}
+                      sx={{ py: 1.5 }}
                     >
-                      {submitting ? <CircularProgress size={24} color="inherit" /> : 'Book Appointment'}
+                      {submitting ? 'Booking…' : 'Book Appointment'}
                     </Button>
                   </Grid>
                 </Grid>

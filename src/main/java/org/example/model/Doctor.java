@@ -30,4 +30,7 @@ public class Doctor extends User {
 
     /** Consultation fee in INR */
     private double fees;
+
+    /** Academic qualifications, e.g. "MBBS, MD" */
+    private String qualification;
 }

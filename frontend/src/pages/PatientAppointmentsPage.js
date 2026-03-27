@@ -3,13 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import {
   Container, Typography, Box, Tabs, Tab, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, CircularProgress, Alert, Chip,
-  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  Paper, Chip,
 } from '@mui/material';
 import CancelIcon from '@mui/icons-material/Cancel';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import { appointmentAPI } from '../services/api';
+import { useSnackbar } from '../context/SnackbarContext';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorMessage from '../components/ErrorMessage';
+import EmptyState from '../components/EmptyState';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const STATUS_CHIP = {
   PENDING:   { label: 'Pending',   color: 'warning' },
@@ -23,17 +28,18 @@ function formatDT(dt) {
   return new Date(dt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-const REFRESH_INTERVAL = 30_000; // 30 seconds
+const REFRESH_INTERVAL = 30_000;
 
 export default function PatientAppointmentsPage() {
   const navigate = useNavigate();
+  const { success, error: showError } = useSnackbar();
 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
-  const [tab, setTab]                   = useState(0);       // 0=Upcoming, 1=Past, 2=Cancelled
+  const [tab, setTab]                   = useState(0);
   const [cancelling, setCancelling]     = useState(null);
-  const [confirmId, setConfirmId]       = useState(null);    // id pending cancel confirmation
+  const [confirmId, setConfirmId]       = useState(null);
   const intervalRef                     = useRef(null);
 
   const load = useCallback(async (silent = false) => {
@@ -43,13 +49,13 @@ export default function PatientAppointmentsPage() {
       const { data } = await appointmentAPI.getAll();
       setAppointments(data);
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to load appointments.');
+      const msg = err.response?.data?.message ?? 'Failed to load appointments.';
+      setError(msg);
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
 
-  // Initial load + auto-refresh every 30 s
   useEffect(() => {
     load();
     intervalRef.current = setInterval(() => load(true), REFRESH_INTERVAL);
@@ -63,19 +69,19 @@ export default function PatientAppointmentsPage() {
     try {
       const { data } = await appointmentAPI.cancel(id);
       setAppointments((prev) => prev.map((a) => (a.id === id ? data : a)));
+      success('Appointment cancelled.');
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to cancel appointment.');
+      showError(err.response?.data?.message ?? 'Failed to cancel appointment.');
     } finally {
       setCancelling(null);
     }
   };
 
-  const upcoming   = appointments.filter((a) => a.status === 'PENDING' || a.status === 'CONFIRMED');
-  const past       = appointments.filter((a) => a.status === 'COMPLETED');
-  const cancelled  = appointments.filter((a) => a.status === 'CANCELLED');
-  const tabRows    = [upcoming, past, cancelled][tab];
-
-  const showAction = tab === 0; // only Upcoming tab has cancel button
+  const upcoming  = appointments.filter((a) => a.status === 'PENDING' || a.status === 'CONFIRMED');
+  const past      = appointments.filter((a) => a.status === 'COMPLETED');
+  const cancelled = appointments.filter((a) => a.status === 'CANCELLED');
+  const tabRows   = [upcoming, past, cancelled][tab];
+  const showAction = tab === 0;
 
   return (
     <Container maxWidth="lg">
@@ -87,7 +93,7 @@ export default function PatientAppointmentsPage() {
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      {error && <ErrorMessage message={error} onRetry={load} />}
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
         <Tab label={`Upcoming (${upcoming.length})`} />
@@ -96,26 +102,23 @@ export default function PatientAppointmentsPage() {
       </Tabs>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LoadingSpinner message="Loading appointments…" />
       ) : tabRows.length === 0 ? (
-        <Box sx={{ textAlign: 'center', mt: 6 }}>
-          <Typography variant="body1" color="text.secondary" gutterBottom>
-            No appointments found.
-          </Typography>
-          {tab === 0 && (
-            <Button variant="contained" startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate('/dashboard/doctors')}
-              sx={{ mt: 2, textTransform: 'none', bgcolor: '#1976d2' }}>
-              Book New Appointment
-            </Button>
-          )}
-        </Box>
+        <EmptyState
+          icon={tab === 2 ? EventBusyIcon : CalendarTodayIcon}
+          title={
+            tab === 0 ? 'No upcoming appointments'
+            : tab === 1 ? 'No past appointments'
+            : 'No cancelled appointments'
+          }
+          subtitle={tab === 0 ? 'Book an appointment with a doctor to get started.' : undefined}
+          actionLabel={tab === 0 ? 'Book Appointment' : undefined}
+          onAction={tab === 0 ? () => navigate('/dashboard/doctors') : undefined}
+        />
       ) : (
         <TableContainer component={Paper} elevation={2}>
           <Table>
-            <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+            <TableHead sx={{ bgcolor: 'grey.100' }}>
               <TableRow>
                 <TableCell><strong>Doctor</strong></TableCell>
                 <TableCell><strong>Date &amp; Time</strong></TableCell>
@@ -144,8 +147,7 @@ export default function PatientAppointmentsPage() {
                           <Button size="small" color="error" variant="outlined"
                             startIcon={<CancelIcon />}
                             disabled={cancelling === a.id}
-                            onClick={() => setConfirmId(a.id)}
-                            sx={{ textTransform: 'none' }}>
+                            onClick={() => setConfirmId(a.id)}>
                             {cancelling === a.id ? 'Cancelling…' : 'Cancel'}
                           </Button>
                         )}
@@ -159,24 +161,16 @@ export default function PatientAppointmentsPage() {
         </TableContainer>
       )}
 
-      {/* Confirmation dialog */}
-      <Dialog open={!!confirmId} onClose={() => setConfirmId(null)}>
-        <DialogTitle>Cancel Appointment?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to cancel this appointment? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmId(null)} sx={{ textTransform: 'none' }}>
-            Keep It
-          </Button>
-          <Button onClick={handleCancelConfirm} color="error" variant="contained"
-            sx={{ textTransform: 'none' }}>
-            Yes, Cancel
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={!!confirmId}
+        onClose={() => setConfirmId(null)}
+        onConfirm={handleCancelConfirm}
+        title="Cancel Appointment?"
+        message="Are you sure you want to cancel this appointment? This action cannot be undone."
+        confirmLabel="Yes, Cancel"
+        cancelLabel="Keep It"
+        confirmColor="error"
+      />
     </Container>
   );
 }

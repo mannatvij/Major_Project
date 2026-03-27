@@ -41,6 +41,7 @@ export const authAPI = {
 export const userAPI = {
   getProfile: () => api.get('/users/profile'),
   updateProfile: (data) => api.put('/users/profile', data),
+  changePassword: (data) => api.put('/users/password', data),
 };
 
 // ─── Doctor API ───────────────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import { userAPI, doctorAPI } from '../services/api';
+import { useSnackbar } from '../context/SnackbarContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function toISO(date, time) {
   return `${date}T${time}:00`;
@@ -17,11 +19,11 @@ function formatSlot(isoStr) {
 }
 
 export default function DoctorAvailabilityPage() {
-  const [slots, setSlots]       = useState([]);      // current slot list (ISO strings)
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState('');
-  const [success, setSuccess]   = useState('');
+  const { success: showSuccess, error: showError } = useSnackbar();
+  const [slots, setSlots]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
 
   const [newDate, setNewDate]   = useState('');
   const [newTime, setNewTime]   = useState('');
@@ -61,24 +63,20 @@ export default function DoctorAvailabilityPage() {
 
   // ── Save to backend ─────────────────────────────────────────────────────────
   const handleSave = async () => {
-    setSaving(true); setError(''); setSuccess('');
+    setSaving(true); setError('');
     try {
       await doctorAPI.updateAvailability({ availableSlots: slots });
-      setSuccess('Availability updated successfully!');
+      showSuccess('Availability updated successfully!');
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to save availability.');
+      const msg = err.response?.data?.message ?? 'Failed to save availability.';
+      setError(msg);
+      showError(msg);
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (loading) return <LoadingSpinner message="Loading availability…" />;
 
   return (
     <Container maxWidth="md">
@@ -89,8 +87,7 @@ export default function DoctorAvailabilityPage() {
         Add or remove your available appointment slots. Changes are saved when you click Save.
       </Typography>
 
-      {error   && <Alert severity="error"   sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
       {/* Add new slot */}
       <Card elevation={2} sx={{ mb: 3 }}>

@@ -1,6 +1,7 @@
 package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.ChangePasswordRequest;
 import org.example.dto.ProfileUpdateRequest;
 import org.example.dto.UserProfileResponse;
 import org.example.service.UserService;
@@ -18,8 +19,7 @@ public class UserController {
 
     /**
      * GET /api/users/profile
-     * Returns the profile of the currently authenticated user.
-     * The username is resolved from the JWT via Spring Security's Authentication object.
+     * Returns the full profile of the currently authenticated user.
      */
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponse> getProfile(Authentication authentication) {
@@ -28,14 +28,25 @@ public class UserController {
 
     /**
      * PUT /api/users/profile
-     * Updates username and/or email for the currently authenticated user.
-     * Note: updating username invalidates the current JWT — client should re-login.
+     * Updates common + role-specific fields for the currently authenticated user.
      */
     @PutMapping("/profile")
     public ResponseEntity<UserProfileResponse> updateProfile(
             Authentication authentication,
             @RequestBody ProfileUpdateRequest request) {
         return ResponseEntity.ok(userService.updateProfile(authentication.getName(), request));
+    }
+
+    /**
+     * PUT /api/users/password
+     * Changes password after verifying the current password.
+     */
+    @PutMapping("/password")
+    public ResponseEntity<Void> changePassword(
+            Authentication authentication,
+            @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok().build();
     }
 
     /**
