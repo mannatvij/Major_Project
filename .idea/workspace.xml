@@ -6,21 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="87ddd42f-e491-4b44-8a56-1245008c6ffe" name="Changes" comment="Commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/AppointmentCard.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AppointmentCard.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/DashboardLayout.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/DashboardLayout.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/BookAppointmentPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/BookAppointmentPage.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DoctorAppointmentsPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DoctorAppointmentsPage.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DoctorAvailabilityPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DoctorAvailabilityPage.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DoctorListPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DoctorListPage.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PatientAppointmentsPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PatientAppointmentsPage.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/services/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/services/api.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/controller/UserController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/controller/UserController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/dto/ProfileUpdateRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/dto/ProfileUpdateRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/dto/UserProfileResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/dto/UserProfileResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/model/Doctor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/model/Doctor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/service/UserService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/service/UserService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,6 +41,10 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "RequestMappingsPanelOrder0": "0",
+    "RequestMappingsPanelOrder1": "1",
+    "RequestMappingsPanelWidth0": "75",
+    "RequestMappingsPanelWidth1": "75",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "Spring Boot.Main.executor": "Run",
@@ -99,7 +89,7 @@
       <updated>1773034255419</updated>
       <workItem from="1773034256619" duration="1209000" />
       <workItem from="1773651105399" duration="14149000" />
-      <workItem from="1773810005587" duration="12047000" />
+      <workItem from="1773810005587" duration="18451000" />
     </task>
     <task id="LOCAL-00001" summary="Commit">
       <option name="closed" value="true" />
@@ -117,7 +107,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774520482693</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Commit">
+      <option name="closed" value="true" />
+      <created>1774591134078</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1774591134078</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
