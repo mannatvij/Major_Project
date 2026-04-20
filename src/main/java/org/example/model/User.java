@@ -29,4 +29,7 @@ public class User {
     private Role role;
 
     private LocalDateTime createdAt;
+
+    /** null is treated as true (active) for backwards compatibility */
+    private Boolean active;
 }

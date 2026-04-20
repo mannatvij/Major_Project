@@ -1,12 +1,14 @@
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.AppointmentRequest;
 import org.example.dto.AppointmentResponse;
 import org.example.dto.StatusUpdateRequest;
 import org.example.exception.AppException;
 import org.example.model.Appointment;
 import org.example.model.AppointmentStatus;
+import org.example.model.Doctor;
 import org.example.model.Role;
 import org.example.model.User;
 import org.example.repository.AppointmentRepository;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AppointmentService {
@@ -25,6 +28,8 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
     private final DoctorRepository doctorRepository;
+    private final SlotManagementService slotManagementService;
+    private final EmailService emailService;
 
     // ─── Create ──────────────────────────────────────────────────────────────
 
@@ -35,16 +40,23 @@ public class AppointmentService {
     public AppointmentResponse createAppointment(String patientUsername, AppointmentRequest request) {
         User patient = findUserByUsername(patientUsername);
 
-        // Verify the doctor exists
-        doctorRepository.findById(request.getDoctorId())
+        // Verify the doctor exists and capture the entity (needed for slot management)
+        Doctor doctor = doctorRepository.findById(request.getDoctorId())
                 .orElseThrow(() -> new AppException(
                         "Doctor not found with id: " + request.getDoctorId(), HttpStatus.NOT_FOUND));
 
-        // Guard against duplicate bookings
+        // Guard against duplicate bookings by the same patient
         if (appointmentRepository.existsByPatientIdAndDoctorIdAndDateTime(
                 patient.getId(), request.getDoctorId(), request.getDateTime())) {
             throw new AppException(
                     "You already have an appointment with this doctor at that time", HttpStatus.CONFLICT);
+        }
+
+        // Guard: slot must still be in the doctor's available list (prevents double-booking)
+        List<LocalDateTime> available = doctor.getAvailableSlots();
+        if (available == null || !available.contains(request.getDateTime())) {
+            throw new AppException(
+                    "The selected slot is no longer available", HttpStatus.CONFLICT);
         }
 
         Appointment appointment = new Appointment();
@@ -56,7 +68,18 @@ public class AppointmentService {
         appointment.setNotes(request.getNotes());
         appointment.setCreatedAt(LocalDateTime.now());
 
-        return toResponse(appointmentRepository.save(appointment));
+        // Save the appointment first; only remove the slot on success
+        AppointmentResponse response = toResponse(appointmentRepository.save(appointment));
+        slotManagementService.removeBookedSlot(doctor, request.getDateTime());
+
+        // Notify patient that booking is received — doctor still needs to confirm
+        try {
+            emailService.sendAppointmentBooked(appointment, patient, doctor);
+        } catch (Exception e) {
+            log.warn("[EMAIL] Failed to trigger booked email for appointment {}: {}", appointment.getId(), e.getMessage());
+        }
+
+        return response;
     }
 
     // ─── Read ─────────────────────────────────────────────────────────────────
@@ -137,7 +160,21 @@ public class AppointmentService {
         }
 
         appointment.setStatus(newStatus);
-        return toResponse(appointmentRepository.save(appointment));
+        AppointmentResponse updated = toResponse(appointmentRepository.save(appointment));
+
+        // Send status email (async)
+        try {
+            User patient = userRepository.findById(appointment.getPatientId()).orElse(null);
+            Doctor doctor = doctorRepository.findById(appointment.getDoctorId()).orElse(null);
+            if (patient != null && doctor != null) {
+                emailService.sendStatusUpdate(appointment, patient, doctor);
+            }
+        } catch (Exception e) {
+            log.warn("[EMAIL] Failed to trigger status-update email for appointment {}: {}",
+                    appointment.getId(), e.getMessage());
+        }
+
+        return updated;
     }
 
     // ─── Cancel (DELETE) ──────────────────────────────────────────────────────
@@ -169,7 +206,21 @@ public class AppointmentService {
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
-        return toResponse(appointmentRepository.save(appointment));
+        AppointmentResponse cancelled = toResponse(appointmentRepository.save(appointment));
+
+        // Send cancellation email (async)
+        try {
+            User patient = userRepository.findById(appointment.getPatientId()).orElse(null);
+            Doctor doctor = doctorRepository.findById(appointment.getDoctorId()).orElse(null);
+            if (patient != null && doctor != null) {
+                emailService.sendAppointmentCancellation(appointment, patient, doctor);
+            }
+        } catch (Exception e) {
+            log.warn("[EMAIL] Failed to trigger cancellation email for appointment {}: {}",
+                    appointment.getId(), e.getMessage());
+        }
+
+        return cancelled;
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

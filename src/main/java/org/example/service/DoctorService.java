@@ -71,7 +71,9 @@ public class DoctorService {
                 doctor.getExperience(),
                 doctor.getRating(),
                 doctor.getAvailableSlots(),
-                doctor.getFees()
+                doctor.getFees(),
+                doctor.getQualification(),
+                doctor.getBio()
         );
     }
 }

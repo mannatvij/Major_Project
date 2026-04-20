@@ -33,4 +33,7 @@ public class Doctor extends User {
 
     /** Academic qualifications, e.g. "MBBS, MD" */
     private String qualification;
+
+    /** Short description shown on the doctor profile card */
+    private String bio;
 }

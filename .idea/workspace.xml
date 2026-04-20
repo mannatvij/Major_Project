@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+COCO<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
@@ -6,7 +6,38 @@
   <component name="ChangeListManager">
     <list default="true" id="87ddd42f-e491-4b44-8a56-1245008c6ffe" name="Changes" comment="Commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Major_Project_Presentation.pptx" beforeDir="false" afterPath="$PROJECT_DIR$/Major_Project_Presentation.pptx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/AppointmentCard.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AppointmentCard.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/DashboardLayout.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/DashboardLayout.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/DoctorCard.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/DoctorCard.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/BookAppointmentPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/BookAppointmentPage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DoctorAppointmentsPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DoctorAppointmentsPage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DoctorAvailabilityPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DoctorAvailabilityPage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DoctorListPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DoctorListPage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/LoginPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/LoginPage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PatientAppointmentsPage.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PatientAppointmentsPage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PatientDashboard.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PatientDashboard.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/services/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/services/api.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/config/DataInitializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/config/DataInitializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/config/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/dto/DoctorResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/dto/DoctorResponse.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/dto/UserProfileResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/dto/UserProfileResponse.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/model/ChatSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/model/ChatSession.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/model/Doctor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/model/Doctor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/model/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/model/User.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/repository/AppointmentRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/repository/AppointmentRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/repository/ChatSessionRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/repository/ChatSessionRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/repository/DoctorRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/repository/DoctorRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/service/AppointmentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/service/AppointmentService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/service/DoctorService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/service/DoctorService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/~$Major_Project_Presentation.pptx" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -16,18 +47,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "mannatvij"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;mannatvij&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/mannatvij/Major_Project.git",
-    "accountId": "ae5e09a4-93d4-4782-be25-b4d189cd984c"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/mannatvij/Major_Project.git&quot;,
+    &quot;accountId&quot;: &quot;ae5e09a4-93d4-4782-be25-b4d189cd984c&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 0
@@ -59,6 +90,7 @@
     "project.structure.last.edited": "Modules",
     "project.structure.proportion": "0.0",
     "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "com.github.copilot.settings.general.GeneralConfigurable",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -89,7 +121,14 @@
       <updated>1773034255419</updated>
       <workItem from="1773034256619" duration="1209000" />
       <workItem from="1773651105399" duration="14149000" />
-      <workItem from="1773810005587" duration="18451000" />
+      <workItem from="1773810005587" duration="23504000" />
+      <workItem from="1775199048032" duration="1603000" />
+      <workItem from="1775819720706" duration="6930000" />
+      <workItem from="1775975136823" duration="13958000" />
+      <workItem from="1776002809418" duration="1048000" />
+      <workItem from="1776052941055" duration="752000" />
+      <workItem from="1776097661347" duration="112000" />
+      <workItem from="1776097818817" duration="858000" />
     </task>
     <task id="LOCAL-00001" summary="Commit">
       <option name="closed" value="true" />
@@ -115,7 +154,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774591134078</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Commit">
+      <option name="closed" value="true" />
+      <created>1774796953822</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1774796953822</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -130,10 +177,18 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/org/example/Main.java</url>
-          <line>9</line>
+          <line>11</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
   </component>
 </project>

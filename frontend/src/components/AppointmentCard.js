@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import {
   Card, CardContent, Typography, Chip, Button, Box, Divider,
+  Menu, MenuItem, ListItemIcon, ListItemText, CircularProgress,
 } from '@mui/material';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import CancelIcon from '@mui/icons-material/Cancel';
+import EventIcon from '@mui/icons-material/Event';
+import DownloadIcon from '@mui/icons-material/Download';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ConfirmDialog from './ConfirmDialog';
+import { calendarAPI } from '../services/api';
 
 const STATUS_CHIP = {
   PENDING:   { label: 'Pending',   color: 'warning' },
@@ -23,9 +28,14 @@ function formatDT(dt) {
 export default function AppointmentCard({ appointment: a, userRole, onStatusChange, acting }) {
   const chip     = STATUS_CHIP[a.status] ?? { label: a.status, color: 'default' };
   const isActive = a.status === 'PENDING' || a.status === 'CONFIRMED';
+  const isPast   = a.dateTime && new Date(a.dateTime) < new Date();
 
   // Confirm dialog state for destructive actions
   const [confirmAction, setConfirmAction] = useState(null); // { statusKey, title, message, label }
+
+  // Calendar menu state
+  const [calAnchor, setCalAnchor]   = useState(null);
+  const [calLoading, setCalLoading] = useState(false);
 
   const requestConfirm = (statusKey, title, message, label) => {
     setConfirmAction({ statusKey, title, message, label });
@@ -34,6 +44,40 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
   const handleConfirmed = () => {
     if (confirmAction) onStatusChange(a.id, confirmAction.statusKey);
     setConfirmAction(null);
+  };
+
+  const handleDownloadIcs = async () => {
+    setCalAnchor(null);
+    setCalLoading(true);
+    try {
+      const blob = await calendarAPI.downloadIcs(a.id);
+      const url  = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href     = url;
+      link.download = `appointment-${a.id?.slice(-6) ?? 'cal'}.ics`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Calendar] ICS download failed', err);
+    } finally {
+      setCalLoading(false);
+    }
+  };
+
+  const handleOpenCalendarLink = async (type) => {
+    setCalAnchor(null);
+    setCalLoading(true);
+    try {
+      const res = await calendarAPI.getLinks(a.id);
+      const url = res.data[type];
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('[Calendar] Link open failed', err);
+    } finally {
+      setCalLoading(false);
+    }
   };
 
   return (
@@ -82,6 +126,41 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
             Booked {formatDT(a.createdAt)} · #{a.id?.slice(-6)}
           </Typography>
 
+          {/* Add to Calendar */}
+          {a.status === 'CONFIRMED' && (
+            <Box sx={{ mt: 2 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                startIcon={calLoading ? <CircularProgress size={14} /> : <EventIcon />}
+                onClick={(e) => setCalAnchor(e.currentTarget)}
+                disabled={calLoading}
+                sx={{ textTransform: 'none' }}
+              >
+                Add to Calendar
+              </Button>
+              <Menu
+                anchorEl={calAnchor}
+                open={Boolean(calAnchor)}
+                onClose={() => setCalAnchor(null)}
+              >
+                <MenuItem onClick={handleDownloadIcs}>
+                  <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Download .ics (Apple / Outlook)</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => handleOpenCalendarLink('google')}>
+                  <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Google Calendar</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => handleOpenCalendarLink('outlook')}>
+                  <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Outlook Calendar</ListItemText>
+                </MenuItem>
+              </Menu>
+            </Box>
+          )}
+
           {/* Action buttons */}
           {isActive && onStatusChange && (
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
@@ -102,14 +181,14 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
               {/* Doctor actions */}
               {userRole === 'DOCTOR' && (
                 <>
-                  {a.status === 'PENDING' && (
+                  {a.status === 'PENDING' && !isPast && (
                     <Button size="small" variant="outlined" color="primary"
                       startIcon={<CheckCircleIcon />} disabled={acting}
                       onClick={() => onStatusChange(a.id, 'CONFIRMED')}>
                       Accept
                     </Button>
                   )}
-                  {a.status === 'PENDING' && (
+                  {a.status === 'PENDING' && !isPast && (
                     <Button size="small" variant="outlined" color="error"
                       startIcon={<CancelIcon />} disabled={acting}
                       onClick={() => requestConfirm(
@@ -120,6 +199,10 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
                       )}>
                       Reject
                     </Button>
+                  )}
+                  {a.status === 'PENDING' && isPast && (
+                    <Chip label="Slot expired — cannot accept" size="small" color="default"
+                      sx={{ fontSize: 11, color: 'text.secondary' }} />
                   )}
                   {a.status === 'CONFIRMED' && (
                     <Button size="small" variant="outlined" color="success"

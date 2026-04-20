@@ -28,4 +28,7 @@ public class UserProfileResponse {
     private String qualification;
     private Double fees;
     private Double rating;
+
+    // ── Admin-managed ────────────────────────────────────────────────────────
+    private Boolean active;
 }

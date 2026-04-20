@@ -14,7 +14,8 @@ import java.util.Optional;
 public interface DoctorRepository extends MongoRepository<Doctor, String> {
 
     // findAll() doesn't apply _class discrimination; use role-scoped queries instead.
-    Page<Doctor> findByRole(Role role, Pageable pageable);
+    List<Doctor> findByRole(Role role);                    // used by SlotManagementService
+    Page<Doctor> findByRole(Role role, Pageable pageable); // used by DoctorService
 
     long countByRole(Role role);
 
@@ -23,6 +24,8 @@ public interface DoctorRepository extends MongoRepository<Doctor, String> {
     Optional<Doctor> findByEmail(String email);
 
     List<Doctor> findBySpecialization(String specialization);
+
+    List<Doctor> findBySpecializationIgnoreCase(String specialization);
 
     Page<Doctor> findBySpecializationIgnoreCaseAndRole(String specialization, Role role, Pageable pageable);
 

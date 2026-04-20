@@ -14,4 +14,6 @@ public interface ChatSessionRepository extends MongoRepository<ChatSession, Stri
     List<ChatSession> findByRecommendedSpecialization(String specialization);
 
     long countByPatientId(String patientId);
+
+    List<ChatSession> findByPatientIdAndActive(String patientId, boolean active);
 }

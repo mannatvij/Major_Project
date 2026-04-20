@@ -38,18 +38,21 @@ export default function DoctorDashboard() {
       value: todayAppts.length,
       icon: <CalendarTodayIcon sx={{ fontSize: 40, color: '#1976d2' }} />,
       color: '#e3f2fd', border: '#1976d2',
+      onClick: () => navigate('/dashboard/doctor-appointments'),
     },
     {
       title: 'Pending Confirmation',
       value: pending,
       icon: <AccessTimeIcon sx={{ fontSize: 40, color: '#ed6c02' }} />,
       color: '#fff3e0', border: '#ed6c02',
+      onClick: () => navigate('/dashboard/doctor-appointments?filter=PENDING'),
     },
     {
       title: 'Confirmed Today',
       value: confirmed,
       icon: <EventAvailableIcon sx={{ fontSize: 40, color: '#2e7d32' }} />,
       color: '#e8f5e9', border: '#2e7d32',
+      onClick: () => navigate('/dashboard/doctor-appointments?filter=CONFIRMED'),
     },
   ];
 
@@ -63,10 +66,11 @@ export default function DoctorDashboard() {
       </Typography>
 
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {CARDS.map(({ title, value, icon, color, border }) => (
+        {CARDS.map(({ title, value, icon, color, border, onClick }) => (
           <Grid item xs={12} sm={4} key={title}>
-            <Card elevation={2} sx={{
+            <Card elevation={2} onClick={onClick} sx={{
               bgcolor: color, borderLeft: `5px solid ${border}`,
+              cursor: onClick ? 'pointer' : 'default',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 },
             }}>

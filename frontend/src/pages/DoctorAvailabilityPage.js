@@ -6,9 +6,11 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import { userAPI, doctorAPI } from '../services/api';
 import { useSnackbar } from '../context/SnackbarContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function toISO(date, time) {
   return `${date}T${time}:00`;
@@ -22,8 +24,9 @@ export default function DoctorAvailabilityPage() {
   const { success: showSuccess, error: showError } = useSnackbar();
   const [slots, setSlots]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState('');
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState('');
+  const [outOfClinicOpen, setOutOfClinicOpen] = useState(false);
 
   const [newDate, setNewDate]   = useState('');
   const [newTime, setNewTime]   = useState('');
@@ -61,6 +64,28 @@ export default function DoctorAvailabilityPage() {
     setSlots((prev) => prev.filter((s) => s !== iso));
   };
 
+  // ── Out of Clinic Today ─────────────────────────────────────────────────────
+  const todaySlots = slots.filter((s) => s.startsWith(today));
+
+  const handleOutOfClinic = async () => {
+    setOutOfClinicOpen(false);
+    const updated = slots.filter((s) => !s.startsWith(today));
+    setSlots(updated);
+    setSaving(true);
+    setError('');
+    try {
+      await doctorAPI.updateAvailability({ availableSlots: updated });
+      showSuccess(`Out of clinic: ${todaySlots.length} slot${todaySlots.length !== 1 ? 's' : ''} removed for today.`);
+    } catch (err) {
+      const msg = err.response?.data?.message ?? 'Failed to update availability.';
+      setError(msg);
+      showError(msg);
+      setSlots(slots); // revert on failure
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ── Save to backend ─────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true); setError('');
@@ -80,12 +105,41 @@ export default function DoctorAvailabilityPage() {
 
   return (
     <Container maxWidth="md">
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Manage Availability
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Add or remove your available appointment slots. Changes are saved when you click Save.
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1 }}>
+        <Box>
+          <Typography variant="h4" fontWeight="bold" gutterBottom>
+            Manage Availability
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Add or remove your available appointment slots. Changes are saved when you click Save.
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          color="error"
+          startIcon={<EventBusyIcon />}
+          onClick={() => {
+            if (todaySlots.length === 0) {
+              showError('You have no slots scheduled for today.');
+            } else {
+              setOutOfClinicOpen(true);
+            }
+          }}
+          disabled={saving}
+          sx={{ textTransform: 'none', whiteSpace: 'nowrap', mt: { xs: 0, sm: 1 } }}
+        >
+          Out of Clinic Today
+        </Button>
+      </Box>
+
+      {todaySlots.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          You have <strong>{todaySlots.length}</strong> slot{todaySlots.length !== 1 ? 's' : ''} open today.
+          Click <strong>Out of Clinic Today</strong> to remove them all and prevent new bookings.
+        </Alert>
+      )}
+
+      <Box sx={{ mb: 3 }} />
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
@@ -149,6 +203,16 @@ export default function DoctorAvailabilityPage() {
           )}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={outOfClinicOpen}
+        onClose={() => setOutOfClinicOpen(false)}
+        onConfirm={handleOutOfClinic}
+        title="Mark Out of Clinic Today?"
+        message={`This will remove all ${todaySlots.length} of your available slot${todaySlots.length !== 1 ? 's' : ''} for today (${new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' })}). Patients will no longer be able to book for today. Already-booked appointments are not affected.`}
+        confirmLabel="Yes, Remove Today's Slots"
+        cancelLabel="Cancel"
+        confirmColor="error"
+      />
     </Container>
   );
 }

@@ -10,12 +10,15 @@ const LoginPage               = React.lazy(() => import('./pages/LoginPage'));
 const RegisterPage            = React.lazy(() => import('./pages/RegisterPage'));
 const PatientDashboard        = React.lazy(() => import('./pages/PatientDashboard'));
 const DoctorDashboard         = React.lazy(() => import('./pages/DoctorDashboard'));
+const AdminDashboard          = React.lazy(() => import('./pages/AdminDashboard'));
+const UserManagementPage      = React.lazy(() => import('./pages/UserManagementPage'));
 const DoctorListPage          = React.lazy(() => import('./pages/DoctorListPage'));
 const BookAppointmentPage     = React.lazy(() => import('./pages/BookAppointmentPage'));
 const PatientAppointmentsPage = React.lazy(() => import('./pages/PatientAppointmentsPage'));
 const DoctorAppointmentsPage  = React.lazy(() => import('./pages/DoctorAppointmentsPage'));
 const DoctorAvailabilityPage  = React.lazy(() => import('./pages/DoctorAvailabilityPage'));
 const ProfilePage             = React.lazy(() => import('./pages/ProfilePage'));
+const ChatPage                = React.lazy(() => import('./pages/ChatPage'));
 
 // ─── Loading spinner ──────────────────────────────────────────────────────────
 function PageLoader() {
@@ -28,8 +31,10 @@ function PageLoader() {
 
 // ─── Role-aware dashboard home ────────────────────────────────────────────────
 function DashboardHome() {
-  const { isDoctor } = useAuth();
-  return isDoctor ? <DoctorDashboard /> : <PatientDashboard />;
+  const { isDoctor, isAdmin } = useAuth();
+  if (isAdmin)  return <AdminDashboard />;
+  if (isDoctor) return <DoctorDashboard />;
+  return <PatientDashboard />;
 }
 
 // ─── Wrap a page inside DashboardLayout ──────────────────────────────────────
@@ -50,6 +55,9 @@ function App() {
           {/* Protected */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard"                             element={<WithLayout Page={DashboardHome} />} />
+            {/* Admin routes */}
+            <Route path="/dashboard/users"                       element={<WithLayout Page={UserManagementPage} />} />
+            <Route path="/dashboard/statistics"                  element={<WithLayout Page={AdminDashboard} />} />
             {/* Patient routes */}
             <Route path="/dashboard/doctors"                     element={<WithLayout Page={DoctorListPage} />} />
             <Route path="/dashboard/book-appointment/:doctorId"  element={<WithLayout Page={BookAppointmentPage} />} />
@@ -57,6 +65,8 @@ function App() {
             {/* Doctor routes */}
             <Route path="/dashboard/doctor-appointments"         element={<WithLayout Page={DoctorAppointmentsPage} />} />
             <Route path="/dashboard/availability"                element={<WithLayout Page={DoctorAvailabilityPage} />} />
+            {/* Patient — AI symptom checker */}
+            <Route path="/dashboard/chat"                        element={<WithLayout Page={ChatPage} />} />
             {/* Shared */}
             <Route path="/dashboard/profile"                     element={<WithLayout Page={ProfilePage} />} />
           </Route>

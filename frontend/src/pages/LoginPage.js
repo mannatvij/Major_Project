@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Box, Card, CardContent, TextField, Button, Typography,
-  Alert, Link as MuiLink, CircularProgress, InputAdornment, IconButton,
+  Alert, Link as MuiLink, InputAdornment, IconButton,
 } from '@mui/material';
 import {
   LocalHospital, Visibility, VisibilityOff, Person, Lock,
@@ -153,7 +153,7 @@ export default function LoginPage() {
                 '&:hover': { background: 'linear-gradient(90deg, #0d47a1, #1565c0)' },
               }}
             >
-              {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+              {loading ? 'Signing in…' : 'Sign In'}
             </Button>
 
             <Typography variant="body2" textAlign="center" color="text.secondary">

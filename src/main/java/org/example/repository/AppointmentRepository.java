@@ -28,4 +28,10 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
     List<Appointment> findByDoctorIdAndDateTimeBetween(String doctorId, LocalDateTime start, LocalDateTime end);
 
     boolean existsByPatientIdAndDoctorIdAndDateTime(String patientId, String doctorId, LocalDateTime dateTime);
+
+    List<Appointment> findByStatusAndDateTimeBetween(
+            AppointmentStatus status, LocalDateTime start, LocalDateTime end);
+
+    List<Appointment> findByPatientIdAndDateTimeBetween(
+            String patientId, LocalDateTime start, LocalDateTime end);
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Container, Typography, Box, Button, Grid,
   Paper, Chip,
@@ -33,11 +34,17 @@ function nextTime(appointments) {
 
 export default function DoctorAppointmentsPage() {
   const { success, error: showError } = useSnackbar();
+  const [searchParams] = useSearchParams();
+
+  // Read ?filter= from URL so dashboard cards can deep-link to a specific filter
+  const initialFilter = FILTERS.includes(searchParams.get('filter'))
+    ? searchParams.get('filter')
+    : 'ALL';
 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
-  const [filter, setFilter]             = useState('ALL');
+  const [filter, setFilter]             = useState(initialFilter);
   const [acting, setActing]             = useState(false);
 
   const load = useCallback(async () => {
@@ -75,8 +82,12 @@ export default function DoctorAppointmentsPage() {
     }
   };
 
+  const now          = new Date();
   const todayAppts   = appointments.filter((a) => isToday(a.dateTime));
-  const pendingCount = appointments.filter((a) => a.status === 'PENDING').length;
+  // Only count PENDING appointments whose slot hasn't passed yet — expired ones can't be accepted
+  const pendingCount = appointments.filter(
+    (a) => a.status === 'PENDING' && new Date(a.dateTime) > now
+  ).length;
   const nextAppt     = nextTime(appointments);
 
   const filtered = filter === 'ALL'

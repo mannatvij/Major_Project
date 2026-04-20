@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Container, Grid, Typography, FormControl, InputLabel,
+  Container, Typography, FormControl, InputLabel,
   Select, MenuItem, Box, TextField, Pagination, InputAdornment,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -12,8 +12,9 @@ import EmptyState from '../components/EmptyState';
 import { doctorAPI } from '../services/api';
 
 const SPECIALIZATIONS = [
-  'Cardiology', 'Neurology', 'Orthopedics',
-  'Pediatrics', 'Dermatology', 'General Medicine',
+  'General Physician', 'Cardiology', 'Neurology',
+  'Orthopedics', 'Gastroenterology', 'Dermatology',
+  'ENT', 'Ophthalmology', 'Psychiatry', 'Pediatrics',
 ];
 
 const PAGE_SIZE = 9;
@@ -151,13 +152,21 @@ export default function DoctorListPage() {
             {specialization ? ` in ${specialization}` : ''}
           </Typography>
 
-          <Grid container spacing={3}>
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+            },
+            gap: 3,
+          }}>
             {visible.map((doctor) => (
-              <Grid item xs={12} sm={6} md={4} key={doctor.id}>
+              <Box key={doctor.id} sx={{ display: 'flex' }}>
                 <DoctorCard doctor={doctor} />
-              </Grid>
+              </Box>
             ))}
-          </Grid>
+          </Box>
 
           {/* ── Pagination ─────────────────────────────────────────────── */}
           {totalPages > 1 && (

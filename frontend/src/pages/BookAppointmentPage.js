@@ -174,21 +174,22 @@ export default function BookAppointmentPage() {
 
               {/* Booked confirmation */}
               {booked && (
-                <Box sx={{ mb: 3, p: 2, bgcolor: '#e8f5e9', borderRadius: 2, border: '1px solid #a5d6a7' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Box sx={{ mb: 3, p: 2.5, bgcolor: '#e8f5e9', borderRadius: 2, border: '1px solid #a5d6a7' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                     <CheckCircleIcon color="success" />
                     <Typography variant="subtitle1" fontWeight="bold" color="success.main">
-                      Appointment Booked!
+                      Appointment Request Submitted!
                     </Typography>
                   </Box>
-                  <Typography variant="body2">Doctor: Dr. {booked.doctorName}</Typography>
-                  <Typography variant="body2">
-                    Date &amp; Time: {new Date(booked.dateTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Doctor:</strong> Dr. {booked.doctorName}
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                    <Typography variant="body2">Status:</Typography>
-                    <Chip label="PENDING" color="warning" size="small" />
-                  </Box>
+                  <Typography variant="body2" sx={{ mb: 1.5 }}>
+                    <strong>Date &amp; Time:</strong> {new Date(booked.dateTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </Typography>
+                  <Alert severity="info" sx={{ py: 0.5, mb: 1 }}>
+                    Your appointment has been booked. You will receive a confirmation email once the doctor confirms.
+                  </Alert>
                   <Typography variant="caption" color="text.secondary">
                     Redirecting to your appointments…
                   </Typography>

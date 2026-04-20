@@ -140,6 +140,16 @@ export default function PatientAppointmentsPage() {
                     </TableCell>
                     <TableCell>
                       <Chip label={chip.label} color={chip.color} size="small" />
+                      {a.status === 'CONFIRMED' && (
+                        <Typography variant="caption" display="block" color="success.main" sx={{ mt: 0.5 }}>
+                          ✓ Doctor has confirmed
+                        </Typography>
+                      )}
+                      {a.status === 'PENDING' && (
+                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                          Awaiting doctor confirmation
+                        </Typography>
+                      )}
                     </TableCell>
                     {showAction && (
                       <TableCell align="center">

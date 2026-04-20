@@ -13,7 +13,11 @@ import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import PersonIcon from '@mui/icons-material/Person';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import PeopleIcon from '@mui/icons-material/People';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ConfirmDialog from './ConfirmDialog';
+import NotificationBell from './NotificationBell';
 
 const DRAWER_WIDTH = 240;
 
@@ -21,6 +25,7 @@ const PATIENT_NAV = [
   { label: 'Dashboard',       icon: <DashboardIcon />,      path: '/dashboard' },
   { label: 'Browse Doctors',  icon: <LocalHospitalIcon />,  path: '/dashboard/doctors' },
   { label: 'My Appointments', icon: <CalendarTodayIcon />,  path: '/dashboard/appointments' },
+  { label: 'AI Assistant',    icon: <SmartToyIcon />,       path: '/dashboard/chat' },
   { label: 'Profile',         icon: <PersonIcon />,         path: '/dashboard/profile' },
 ];
 
@@ -31,8 +36,14 @@ const DOCTOR_NAV = [
   { label: 'Profile',             icon: <PersonIcon />,         path: '/dashboard/profile' },
 ];
 
+const ADMIN_NAV = [
+  { label: 'Dashboard',      icon: <DashboardIcon />,    path: '/dashboard' },
+  { label: 'User Management',icon: <PeopleIcon />,        path: '/dashboard/users' },
+  { label: 'Statistics',     icon: <BarChartIcon />,      path: '/dashboard/statistics' },
+];
+
 export default function DashboardLayout({ children }) {
-  const { user, logout, isDoctor } = useAuth();
+  const { user, logout, isDoctor, isAdmin } = useAuth();
   const { info } = useSnackbar();
   const navigate  = useNavigate();
   const location  = useLocation();
@@ -40,7 +51,7 @@ export default function DashboardLayout({ children }) {
   const isMobile  = useMediaQuery(muiTheme.breakpoints.down('sm'));
   const [logoutOpen, setLogoutOpen] = useState(false);
 
-  const NAV_ITEMS = isDoctor ? DOCTOR_NAV : PATIENT_NAV;
+  const NAV_ITEMS = isAdmin ? ADMIN_NAV : isDoctor ? DOCTOR_NAV : PATIENT_NAV;
 
   // Map path → BottomNavigation index
   const activeIndex = NAV_ITEMS.findIndex((n) => n.path === location.pathname);
@@ -95,6 +106,8 @@ export default function DashboardLayout({ children }) {
           </Typography>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            {/* Notification bell — shown for patients (and doctors get empty result gracefully) */}
+            {!isAdmin && <NotificationBell />}
             <Avatar sx={{ bgcolor: '#fff', color: 'primary.main', width: 32, height: 32, fontSize: 14 }}>
               {user?.username?.[0]?.toUpperCase() ?? 'U'}
             </Avatar>

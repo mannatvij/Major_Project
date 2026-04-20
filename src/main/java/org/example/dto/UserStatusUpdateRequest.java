@@ -1,0 +1,10 @@
+package org.example.dto;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+public class UserStatusUpdateRequest {
+    private boolean active;
+}

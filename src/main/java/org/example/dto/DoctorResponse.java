@@ -19,4 +19,6 @@ public class DoctorResponse {
     private double rating;         // out of 5.0
     private List<LocalDateTime> availableSlots;
     private double fees;           // consultation fee
+    private String qualification;
+    private String bio;
 }
