@@ -105,7 +105,7 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
 
       const rzp = new window.Razorpay({
         key: order.keyId, amount: Math.round(order.amount * 100),
-        currency: order.currency || 'INR', order_id: order.orderId,
+        currency:"INR", order_id: order.orderId,
         name: 'Smart Healthcare',
         handler: async (resp) => {
           await verify(resp.razorpay_payment_id, resp.razorpay_signature);
