@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSnackbar } from '../context/SnackbarContext';
+import { useThemeMode } from '../context/ThemeModeContext';
 import {
   AppBar, Toolbar, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-  Box, Typography, Button, Avatar, useMediaQuery, useTheme,
-  BottomNavigation, BottomNavigationAction, Paper,
+  Box, Typography, Button, Avatar, useMediaQuery, useTheme, IconButton, Tooltip,
+  BottomNavigation, BottomNavigationAction, Paper, alpha,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -16,10 +17,12 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
 import ConfirmDialog from './ConfirmDialog';
 import NotificationBell from './NotificationBell';
 
-const DRAWER_WIDTH = 240;
+const DRAWER_WIDTH = 248;
 
 const PATIENT_NAV = [
   { label: 'Dashboard',       icon: <DashboardIcon />,      path: '/dashboard' },
@@ -30,30 +33,30 @@ const PATIENT_NAV = [
 ];
 
 const DOCTOR_NAV = [
-  { label: 'Dashboard',           icon: <DashboardIcon />,      path: '/dashboard' },
-  { label: 'Appointments',        icon: <CalendarTodayIcon />,  path: '/dashboard/doctor-appointments' },
-  { label: 'Availability',        icon: <EventAvailableIcon />, path: '/dashboard/availability' },
-  { label: 'Profile',             icon: <PersonIcon />,         path: '/dashboard/profile' },
+  { label: 'Dashboard',    icon: <DashboardIcon />,      path: '/dashboard' },
+  { label: 'Appointments', icon: <CalendarTodayIcon />,  path: '/dashboard/doctor-appointments' },
+  { label: 'Availability', icon: <EventAvailableIcon />, path: '/dashboard/availability' },
+  { label: 'Profile',      icon: <PersonIcon />,         path: '/dashboard/profile' },
 ];
 
 const ADMIN_NAV = [
-  { label: 'Dashboard',      icon: <DashboardIcon />,    path: '/dashboard' },
-  { label: 'User Management',icon: <PeopleIcon />,        path: '/dashboard/users' },
-  { label: 'Statistics',     icon: <BarChartIcon />,      path: '/dashboard/statistics' },
+  { label: 'Dashboard',       icon: <DashboardIcon />, path: '/dashboard' },
+  { label: 'User Management', icon: <PeopleIcon />,    path: '/dashboard/users' },
+  { label: 'Statistics',      icon: <BarChartIcon />,  path: '/dashboard/statistics' },
 ];
 
 export default function DashboardLayout({ children }) {
   const { user, logout, isDoctor, isAdmin } = useAuth();
   const { info } = useSnackbar();
+  const { mode, toggle } = useThemeMode();
   const navigate  = useNavigate();
   const location  = useLocation();
   const muiTheme  = useTheme();
+  const isDark    = muiTheme.palette.mode === 'dark';
   const isMobile  = useMediaQuery(muiTheme.breakpoints.down('sm'));
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   const NAV_ITEMS = isAdmin ? ADMIN_NAV : isDoctor ? DOCTOR_NAV : PATIENT_NAV;
-
-  // Map path → BottomNavigation index
   const activeIndex = NAV_ITEMS.findIndex((n) => n.path === location.pathname);
 
   const handleLogout = () => {
@@ -62,28 +65,51 @@ export default function DashboardLayout({ children }) {
     navigate('/login', { replace: true });
   };
 
+  const primary = muiTheme.palette.primary.main;
+
   const sidebar = (
-    <Box sx={{ overflow: 'auto', mt: 1 }}>
+    <Box sx={{ overflow: 'auto', mt: 1, px: 1 }}>
       <List>
         {NAV_ITEMS.map(({ label, icon, path }) => {
           const active = location.pathname === path;
           return (
-            <ListItem key={label} disablePadding sx={{ mx: 1, mb: 0.5 }}>
+            <ListItem key={label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 onClick={() => navigate(path)}
                 sx={{
+                  position: 'relative',
                   borderRadius: 2,
-                  bgcolor: active ? '#e3f2fd' : 'transparent',
-                  color: active ? 'primary.main' : 'inherit',
-                  '&:hover': { bgcolor: '#e3f2fd' },
+                  pl: 2,
+                  py: 1.1,
+                  color: active ? 'primary.main' : 'text.primary',
+                  background: active
+                    ? `linear-gradient(90deg, ${alpha(primary, isDark ? 0.22 : 0.14)}, ${alpha(primary, 0)})`
+                    : 'transparent',
+                  transition: 'background 0.2s, color 0.2s, transform 0.15s',
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    left: 0, top: 8, bottom: 8, width: 3,
+                    borderRadius: 4,
+                    background: active ? primary : 'transparent',
+                    transition: 'background 0.2s',
+                  },
+                  '&:hover': {
+                    background: alpha(primary, isDark ? 0.18 : 0.1),
+                    transform: 'translateX(2px)',
+                  },
                 }}
               >
-                <ListItemIcon sx={{ color: active ? 'primary.main' : 'inherit', minWidth: 40 }}>
+                <ListItemIcon sx={{
+                  color: active ? 'primary.main' : 'text.secondary',
+                  minWidth: 38,
+                  transition: 'color 0.2s',
+                }}>
                   {icon}
                 </ListItemIcon>
                 <ListItemText
                   primary={label}
-                  primaryTypographyProps={{ fontWeight: active ? 600 : 400, fontSize: 14 }}
+                  primaryTypographyProps={{ fontWeight: active ? 700 : 500, fontSize: 14 }}
                 />
               </ListItemButton>
             </ListItem>
@@ -95,24 +121,56 @@ export default function DashboardLayout({ children }) {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      {/* ── Top AppBar ─────────────────────────────────────────────────── */}
+      {/* Glass AppBar */}
       <AppBar
         position="fixed"
-        sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'primary.main' }}
+        elevation={0}
+        sx={{
+          zIndex: (t) => t.zIndex.drawer + 1,
+          background: isDark
+            ? alpha(muiTheme.palette.background.paper, 0.75)
+            : alpha('#ffffff', 0.78),
+          color: 'text.primary',
+          borderBottom: `1px solid ${muiTheme.palette.divider}`,
+        }}
       >
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="h6" fontWeight="bold" noWrap>
-            Smart Healthcare
-          </Typography>
+        <Toolbar sx={{ justifyContent: 'space-between', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+            <Box sx={{
+              width: 36, height: 36, borderRadius: 2,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: `linear-gradient(135deg, ${muiTheme.palette.primary.main}, ${muiTheme.palette.primary.light})`,
+              boxShadow: `0 6px 16px ${alpha(primary, 0.4)}`,
+            }}>
+              <LocalHospitalIcon sx={{ color: '#fff', fontSize: 22 }} />
+            </Box>
+            <Typography variant="h6" fontWeight={800} noWrap sx={{
+              background: `linear-gradient(90deg, ${muiTheme.palette.primary.main}, ${muiTheme.palette.primary.light})`,
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            }}>
+              Smart Healthcare
+            </Typography>
+          </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            {/* Notification bell — shown for patients (and doctors get empty result gracefully) */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton onClick={toggle} size="small" sx={{
+                border: `1px solid ${muiTheme.palette.divider}`,
+                transition: 'transform 0.3s ease',
+                '&:hover': { transform: 'rotate(20deg)' },
+              }}>
+                {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
             {!isAdmin && <NotificationBell />}
-            <Avatar sx={{ bgcolor: '#fff', color: 'primary.main', width: 32, height: 32, fontSize: 14 }}>
+            <Avatar sx={{
+              bgcolor: 'primary.main', color: '#fff', width: 34, height: 34, fontSize: 14, fontWeight: 700,
+              boxShadow: `0 4px 12px ${alpha(primary, 0.4)}`,
+            }}>
               {user?.username?.[0]?.toUpperCase() ?? 'U'}
             </Avatar>
             {!isMobile && (
-              <Typography variant="body2" sx={{ color: '#fff' }}>
+              <Typography variant="body2" fontWeight={600} sx={{ color: 'text.primary' }}>
                 {user?.username ?? 'User'}
               </Typography>
             )}
@@ -121,7 +179,7 @@ export default function DashboardLayout({ children }) {
               size="small"
               startIcon={<ExitToAppIcon />}
               onClick={() => setLogoutOpen(true)}
-              sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.6)' }}
+              sx={{ ml: 0.5 }}
             >
               {isMobile ? '' : 'Logout'}
             </Button>
@@ -129,7 +187,7 @@ export default function DashboardLayout({ children }) {
         </Toolbar>
       </AppBar>
 
-      {/* ── Sidebar (desktop only) ─────────────────────────────────────── */}
+      {/* Sidebar */}
       {!isMobile && (
         <Drawer
           variant="permanent"
@@ -139,8 +197,9 @@ export default function DashboardLayout({ children }) {
             '& .MuiDrawer-paper': {
               width: DRAWER_WIDTH,
               boxSizing: 'border-box',
-              bgcolor: '#f8f9fa',
-              borderRight: '1px solid #e0e0e0',
+              bgcolor: isDark ? alpha(muiTheme.palette.background.paper, 0.6) : alpha('#ffffff', 0.7),
+              backdropFilter: 'blur(12px)',
+              borderRight: `1px solid ${muiTheme.palette.divider}`,
             },
           }}
         >
@@ -149,15 +208,13 @@ export default function DashboardLayout({ children }) {
         </Drawer>
       )}
 
-      {/* ── Main content ──────────────────────────────────────────────── */}
+      {/* Main */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: { xs: 2, md: 3 },
           minHeight: '100vh',
-          bgcolor: 'background.default',
-          // On mobile add bottom padding so content isn't hidden under BottomNavigation
           pb: { xs: 9, sm: 3 },
         }}
       >
@@ -165,16 +222,22 @@ export default function DashboardLayout({ children }) {
         {children}
       </Box>
 
-      {/* ── Bottom Navigation (mobile only) ───────────────────────────── */}
+      {/* Mobile bottom nav */}
       {isMobile && (
         <Paper
-          sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1200 }}
-          elevation={8}
+          sx={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1200,
+            borderTop: `1px solid ${muiTheme.palette.divider}`,
+            background: isDark ? alpha(muiTheme.palette.background.paper, 0.92) : alpha('#ffffff', 0.95),
+            backdropFilter: 'blur(12px)',
+          }}
+          elevation={0}
         >
           <BottomNavigation
             showLabels
             value={activeIndex === -1 ? 0 : activeIndex}
             onChange={(_, newVal) => navigate(NAV_ITEMS[newVal].path)}
+            sx={{ bgcolor: 'transparent' }}
           >
             {NAV_ITEMS.map(({ label, icon }) => (
               <BottomNavigationAction key={label} label={label} icon={icon} />
@@ -183,7 +246,6 @@ export default function DashboardLayout({ children }) {
         </Paper>
       )}
 
-      {/* ── Logout confirm ────────────────────────────────────────────── */}
       <ConfirmDialog
         open={logoutOpen}
         onClose={() => setLogoutOpen(false)}

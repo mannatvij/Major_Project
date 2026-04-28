@@ -1,9 +1,11 @@
 package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.ChatMessageRequest;
 import org.example.dto.ChatResponse;
 import org.example.dto.DoctorResponse;
+import org.example.dto.MLChatResponse;
 import org.example.dto.MatchResult;
 import org.example.exception.AppException;
 import org.example.model.ChatSession;
@@ -13,6 +15,7 @@ import org.example.model.User;
 import org.example.repository.ChatSessionRepository;
 import org.example.repository.DoctorRepository;
 import org.example.repository.UserRepository;
+import org.example.service.MLServiceClient;
 import org.example.service.SymptomMatcher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,15 +29,31 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Chat endpoints. Delegates to the Python ML service when available;
+ * falls back to the rule-based {@link SymptomMatcher} when it isn't, so the
+ * chatbot never goes fully offline.
+ */
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatController {
 
-    private final SymptomMatcher         symptomMatcher;
-    private final ChatSessionRepository  chatSessionRepository;
-    private final DoctorRepository       doctorRepository;
-    private final UserRepository         userRepository;
+    private final SymptomMatcher        symptomMatcher;
+    private final MLServiceClient       mlServiceClient;
+    private final ChatSessionRepository chatSessionRepository;
+    private final DoctorRepository      doctorRepository;
+    private final UserRepository        userRepository;
+
+    private static final String DEFAULT_WELCOME =
+            "Hello! 👋 I'm your AI health assistant.\n\n" +
+            "Describe your symptoms in your own words and I'll guide you to the right doctor. " +
+            "I'll ask a couple of quick follow-up questions so I can make a good recommendation.\n\n" +
+            "For example:\n" +
+            "• \"I have a bad headache and dizziness\"\n" +
+            "• \"My chest hurts when I breathe\"\n" +
+            "• \"I've had fever and a cough for two days\"";
 
     // ─── Start a new session ──────────────────────────────────────────────────
 
@@ -45,28 +64,33 @@ public class ChatController {
         User user = resolveUser(userDetails.getUsername());
 
         // Close any currently-active session
-        chatSessionRepository.findByPatientIdAndActive(user.getId(), true)
-                .forEach(s -> { s.setActive(false); chatSessionRepository.save(s); });
-
-        Message welcome = new Message("bot",
-                "Hello! 👋 I'm your AI health assistant.\n\n" +
-                "Describe your symptoms in your own words and I'll suggest the right doctor " +
-                "— whether that's a General Physician or a specialist.\n\n" +
-                "For example:\n" +
-                "• \"I have a bad headache and dizziness\"\n" +
-                "• \"My chest hurts when I breathe\"\n" +
-                "• \"I've had fever and a cough for two days\"",
-                LocalDateTime.now());
+        chatSessionRepository.findByPatientIdAndActive(user.getId(), true).forEach(s -> {
+            s.setActive(false);
+            chatSessionRepository.save(s);
+            mlServiceClient.resetSession(s.getId());
+        });
 
         ChatSession session = new ChatSession();
         session.setPatientId(user.getId());
-        session.setMessages(new ArrayList<>(List.of(welcome)));
+        session.setMessages(new ArrayList<>());
         session.setTimestamp(LocalDateTime.now());
         session.setActive(true);
         session.setDetectedSymptoms(new ArrayList<>());
         session.setAwaitingIntensity(false);
         session.setPendingKeywords(new ArrayList<>());
+        session.setUseMlService(false);
         session = chatSessionRepository.save(session);
+
+        // Try ML welcome first; fall back to the canned one
+        MLChatResponse mlStart = mlServiceClient.startConversation(session.getId());
+        String welcomeText = (mlStart != null && mlStart.getMessage() != null)
+                ? mlStart.getMessage()
+                : DEFAULT_WELCOME;
+        session.setUseMlService(mlStart != null);
+
+        Message welcome = new Message("bot", welcomeText, LocalDateTime.now());
+        session.getMessages().add(welcome);
+        chatSessionRepository.save(session);
 
         return ResponseEntity.ok(
                 new ChatResponse(session.getId(), welcome, null, Collections.emptyList()));
@@ -82,64 +106,93 @@ public class ChatController {
         ChatSession session = chatSessionRepository.findById(request.getSessionId())
                 .orElseThrow(() -> new AppException("Chat session not found", HttpStatus.NOT_FOUND));
 
-        // Persist patient message
         Message userMsg = new Message("patient", request.getMessage(), LocalDateTime.now());
         session.getMessages().add(userMsg);
 
+        // Prefer ML service when this session is using it
+        if (session.isUseMlService()) {
+            MLChatResponse ml = mlServiceClient.sendMessage(session.getId(), request.getMessage());
+            if (ml != null) {
+                return ResponseEntity.ok(handleMlResponse(session, ml));
+            }
+            // ML just went down mid-conversation — fall through to the rule-based matcher
+            log.warn("ML service unavailable mid-session {}; falling back to SymptomMatcher", session.getId());
+            session.setUseMlService(false);
+            session.setAwaitingIntensity(false);
+            session.setPendingSpecialization(null);
+            session.setPendingKeywords(new ArrayList<>());
+        }
+
+        return ResponseEntity.ok(handleRuleBasedResponse(session, request.getMessage()));
+    }
+
+    // ─── ML-service path ──────────────────────────────────────────────────────
+
+    private ChatResponse handleMlResponse(ChatSession session, MLChatResponse ml) {
+        Message botMsg = new Message("bot", ml.getMessage(), LocalDateTime.now());
+        session.getMessages().add(botMsg);
+
+        List<DoctorResponse> doctors = Collections.emptyList();
+        String specialization = null;
+
+        if (ml.isComplete() && ml.getRecommendedSpecialization() != null) {
+            specialization = ml.getRecommendedSpecialization();
+            session.setRecommendedSpecialization(specialization);
+            doctors = findDoctorsBySpecialization(specialization);
+        }
+        chatSessionRepository.save(session);
+
+        return new ChatResponse(session.getId(), botMsg, specialization, doctors);
+    }
+
+    // ─── Rule-based fallback path ─────────────────────────────────────────────
+
+    private ChatResponse handleRuleBasedResponse(ChatSession session, String userText) {
         MatchResult match;
 
         if (session.isAwaitingIntensity()) {
-            // Second turn: resolve intensity and produce final routing decision
             match = symptomMatcher.resolveWithIntensity(
-                    request.getMessage(),
+                    userText,
                     session.getPendingSpecialization(),
                     session.getPendingKeywords() != null
                             ? session.getPendingKeywords()
                             : Collections.emptyList());
-
-            // Clear the follow-up state
             session.setAwaitingIntensity(false);
             session.setPendingSpecialization(null);
             session.setPendingKeywords(new ArrayList<>());
-
         } else {
-            // First turn: analyse symptoms
-            match = symptomMatcher.analyze(request.getMessage());
-
+            match = symptomMatcher.analyze(userText);
             if (match.isRequiresFollowUp()) {
-                // Bot is asking for intensity — save state and return the question
                 session.setAwaitingIntensity(true);
                 session.setPendingSpecialization(match.getPendingCategory());
                 session.setPendingKeywords(new ArrayList<>(match.getMatchedKeywords()));
             }
         }
 
-        // Update session metadata
         session.setRecommendedSpecialization(match.getSpecialization());
         if (session.getDetectedSymptoms() == null) session.setDetectedSymptoms(new ArrayList<>());
         if (match.getMatchedKeywords() != null) {
             session.getDetectedSymptoms().addAll(match.getMatchedKeywords());
         }
 
-        // Persist bot reply
         Message botMsg = new Message("bot", match.getResponseMessage(), LocalDateTime.now());
         session.getMessages().add(botMsg);
         chatSessionRepository.save(session);
 
-        // When we're still waiting for intensity we don't show doctor cards yet
         List<DoctorResponse> doctors = Collections.emptyList();
         if (!match.isRequiresFollowUp()) {
-            doctors = doctorRepository
-                    .findBySpecializationIgnoreCase(match.getSpecialization())
-                    .stream()
-                    .filter(d -> d.getAvailableSlots() != null && !d.getAvailableSlots().isEmpty())
-                    .limit(4)
-                    .map(this::toResponse)
-                    .collect(Collectors.toList());
+            doctors = findDoctorsBySpecialization(match.getSpecialization());
         }
 
-        return ResponseEntity.ok(
-                new ChatResponse(session.getId(), botMsg, match.getSpecialization(), doctors));
+        return new ChatResponse(session.getId(), botMsg, match.getSpecialization(), doctors);
+    }
+
+    private List<DoctorResponse> findDoctorsBySpecialization(String specialization) {
+        return doctorRepository.findBySpecializationIgnoreCase(specialization).stream()
+                .filter(d -> d.getAvailableSlots() != null && !d.getAvailableSlots().isEmpty())
+                .limit(4)
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     // ─── Chat history ─────────────────────────────────────────────────────────

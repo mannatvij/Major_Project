@@ -118,7 +118,7 @@ export default function PatientAppointmentsPage() {
       ) : (
         <TableContainer component={Paper} elevation={2}>
           <Table>
-            <TableHead sx={{ bgcolor: 'grey.100' }}>
+            <TableHead sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'grey.100' }}>
               <TableRow>
                 <TableCell><strong>Doctor</strong></TableCell>
                 <TableCell><strong>Date &amp; Time</strong></TableCell>

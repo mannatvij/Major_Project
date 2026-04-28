@@ -4,6 +4,7 @@ import { CircularProgress, Box } from '@mui/material';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
+import PageTransition from './components/PageTransition';
 
 // ─── Lazy-loaded pages ────────────────────────────────────────────────────────
 const LoginPage               = React.lazy(() => import('./pages/LoginPage'));
@@ -39,7 +40,13 @@ function DashboardHome() {
 
 // ─── Wrap a page inside DashboardLayout ──────────────────────────────────────
 function WithLayout({ Page }) {
-  return <DashboardLayout><Page /></DashboardLayout>;
+  return (
+    <DashboardLayout>
+      <PageTransition>
+        <Page />
+      </PageTransition>
+    </DashboardLayout>
+  );
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────

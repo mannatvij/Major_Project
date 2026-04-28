@@ -4,19 +4,17 @@ import './index.css';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { SnackbarProvider } from './context/SnackbarContext';
-import { ThemeProvider, CssBaseline } from '@mui/material';
-import theme from './theme';
+import { ThemeModeProvider } from './context/ThemeModeContext';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <ThemeModeProvider>
       <AuthProvider>
         <SnackbarProvider>
           <App />
         </SnackbarProvider>
       </AuthProvider>
-    </ThemeProvider>
+    </ThemeModeProvider>
   </React.StrictMode>
 );

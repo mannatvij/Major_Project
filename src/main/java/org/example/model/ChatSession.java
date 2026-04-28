@@ -52,4 +52,10 @@ public class ChatSession {
      * Keywords matched in the previous turn — carried forward to the intensity response.
      */
     private List<String> pendingKeywords = new ArrayList<>();
+
+    /**
+     * True when this session is being driven by the Python ML service.
+     * False means the rule-based {@code SymptomMatcher} is handling it.
+     */
+    private boolean useMlService;
 }

@@ -4,12 +4,27 @@ import {
   Container, Paper, Box, TextField, Button, Typography, Avatar,
   Grid, Card, CardContent, Chip, CircularProgress, Divider,
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import PersonIcon from '@mui/icons-material/Person';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import CurrencyRupeeIcon from '@mui/icons-material/CurrencyRupee';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import SendIcon           from '@mui/icons-material/Send';
+import SmartToyIcon       from '@mui/icons-material/SmartToy';
+import PersonIcon         from '@mui/icons-material/Person';
+import RestartAltIcon     from '@mui/icons-material/RestartAlt';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import CurrencyRupeeIcon  from '@mui/icons-material/CurrencyRupee';
+import WorkIcon           from '@mui/icons-material/Work';
+import StarIcon           from '@mui/icons-material/Star';
+
+// Per-specialty visuals
+import FavoriteIcon              from '@mui/icons-material/Favorite';
+import PsychologyIcon            from '@mui/icons-material/Psychology';
+import AccessibilityNewIcon      from '@mui/icons-material/AccessibilityNew';
+import SpaIcon                   from '@mui/icons-material/Spa';
+import MedicalServicesIcon       from '@mui/icons-material/MedicalServices';
+import RestaurantIcon            from '@mui/icons-material/Restaurant';
+import HearingIcon               from '@mui/icons-material/Hearing';
+import VisibilityIcon            from '@mui/icons-material/Visibility';
+import ChildCareIcon             from '@mui/icons-material/ChildCare';
+import SelfImprovementIcon       from '@mui/icons-material/SelfImprovement';
+
 import { chatAPI } from '../services/api';
 import { useSnackbar } from '../context/SnackbarContext';
 
@@ -23,9 +38,24 @@ const QUICK_PICKS = [
   'Back pain when I walk',
 ];
 
-function formatSpec(spec) {
-  if (!spec) return '';
-  return spec.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+// Maps backend specializations to an icon + brand colour for consistent theming
+// across the recommendation header, doctor cards and booking CTA.
+const SPEC_META = {
+  Cardiology:          { Icon: FavoriteIcon,         color: '#c62828' },
+  Neurology:           { Icon: PsychologyIcon,       color: '#6a1b9a' },
+  Orthopedics:         { Icon: AccessibilityNewIcon, color: '#e65100' },
+  Dermatology:         { Icon: SpaIcon,              color: '#0277bd' },
+  'General Physician': { Icon: MedicalServicesIcon,  color: '#1565c0' },
+  Gastroenterology:    { Icon: RestaurantIcon,       color: '#2e7d32' },
+  ENT:                 { Icon: HearingIcon,          color: '#00838f' },
+  Ophthalmology:       { Icon: VisibilityIcon,       color: '#558b2f' },
+  Pediatrics:          { Icon: ChildCareIcon,        color: '#00695c' },
+  Psychiatry:          { Icon: SelfImprovementIcon,  color: '#4527a0' },
+};
+const DEFAULT_META = { Icon: MedicalServicesIcon, color: '#37474f' };
+
+function metaFor(spec) {
+  return SPEC_META[spec] ?? DEFAULT_META;
 }
 
 function renderContent(text) {
@@ -106,6 +136,9 @@ export default function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
+  const recMeta = spec ? metaFor(spec) : null;
+  const RecIcon = recMeta?.Icon;
+
   return (
     <Container maxWidth="md" sx={{ pb: 4 }}>
       {/* Page title */}
@@ -125,7 +158,7 @@ export default function ChatPage() {
       <Paper elevation={3} sx={{ display: 'flex', flexDirection: 'column', height: '70vh', borderRadius: 2, overflow: 'hidden' }}>
 
         {/* ── Message list ───────────────────────────────────────────────── */}
-        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, bgcolor: '#f5f7fa' }}>
+        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#f5f7fa' }}>
           {starting ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
               <CircularProgress />
@@ -146,7 +179,7 @@ export default function ChatPage() {
                       sx={{
                         px: 2, py: 1.5,
                         maxWidth: '75%',
-                        bgcolor: isBot ? '#fff' : 'primary.main',
+                        bgcolor: isBot ? 'background.paper' : 'primary.main',
                         color:   isBot ? 'text.primary' : '#fff',
                         borderRadius: isBot ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
                       }}
@@ -217,7 +250,7 @@ export default function ChatPage() {
 
         {/* ── Input bar ──────────────────────────────────────────────────── */}
         <Divider />
-        <Box sx={{ p: 1.5, bgcolor: '#fff', display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+        <Box sx={{ p: 1.5, bgcolor: 'background.paper', display: 'flex', gap: 1, alignItems: 'flex-end' }}>
           <TextField
             fullWidth multiline maxRows={3} size="small"
             placeholder="Describe your symptoms…"
@@ -238,43 +271,123 @@ export default function ChatPage() {
       </Paper>
 
       {/* ── Recommended doctors ─────────────────────────────────────────── */}
-      {doctors.length > 0 && (
+      {doctors.length > 0 && recMeta && (
         <Box sx={{ mt: 3 }}>
-          <Typography variant="h6" fontWeight="bold" sx={{ mb: 1.5 }}>
-            Recommended {formatSpec(spec)} Doctors
-          </Typography>
+          {/* Recommendation banner with specialty icon */}
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              mb: 2,
+              borderRadius: 2,
+              border: `1px solid ${recMeta.color}33`,
+              bgcolor: `${recMeta.color}0d`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+            }}
+          >
+            <Avatar sx={{ bgcolor: recMeta.color, width: 44, height: 44 }}>
+              <RecIcon sx={{ color: '#fff' }} />
+            </Avatar>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1 }}>
+                Recommended specialist
+              </Typography>
+              <Typography variant="h6" fontWeight={700} sx={{ color: recMeta.color, lineHeight: 1.2 }}>
+                {spec}
+              </Typography>
+            </Box>
+          </Paper>
+
           <Grid container spacing={2}>
-            {doctors.map((doc) => (
-              <Grid item xs={12} sm={6} key={doc.id}>
-                <Card elevation={2} sx={{ '&:hover': { boxShadow: 5 }, transition: 'box-shadow .2s' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                      <Avatar sx={{ bgcolor: 'success.main' }}>
-                        <LocalHospitalIcon />
+            {doctors.map((doc) => {
+              const meta = metaFor(doc.specialization ?? spec);
+              const Icon = meta.Icon;
+              return (
+                <Grid item xs={12} sm={6} key={doc.id}>
+                  <Card
+                    elevation={2}
+                    sx={{
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      transition: 'transform .2s, box-shadow .2s',
+                      '&:hover': { transform: 'translateY(-2px)', boxShadow: 6 },
+                    }}
+                  >
+                    {/* Colored header */}
+                    <Box sx={{
+                      bgcolor: meta.color,
+                      color: '#fff',
+                      px: 2, py: 1.5,
+                      display: 'flex', alignItems: 'center', gap: 1.5,
+                    }}>
+                      <Avatar sx={{
+                        bgcolor: 'rgba(255,255,255,0.18)',
+                        border: '2px solid rgba(255,255,255,0.4)',
+                      }}>
+                        <Icon sx={{ color: '#fff' }} />
                       </Avatar>
-                      <Box>
-                        <Typography variant="subtitle2" fontWeight="bold">Dr. {doc.name}</Typography>
-                        <Chip label={doc.specialization} size="small" color="primary" sx={{ height: 20, fontSize: 11 }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle1" fontWeight={700} noWrap>
+                          Dr. {doc.name}
+                        </Typography>
+                        <Chip
+                          label={doc.specialization}
+                          size="small"
+                          sx={{
+                            bgcolor: 'rgba(255,255,255,0.22)',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 11,
+                            height: 20,
+                          }}
+                        />
                       </Box>
                     </Box>
-                    <Typography variant="body2" color="text.secondary">
-                      Experience: {doc.experience} yr{doc.experience !== 1 ? 's' : ''}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                      <CurrencyRupeeIcon fontSize="small" color="success" />
-                      <Typography variant="body2" color="success.main" fontWeight={600}>
-                        ₹{doc.fees} / consultation
-                      </Typography>
-                    </Box>
-                    <Button variant="contained" fullWidth size="small"
-                      sx={{ mt: 1.5, textTransform: 'none' }}
-                      onClick={() => navigate(`/dashboard/book-appointment/${doc.id}`)}>
-                      Book Appointment
-                    </Button>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
+
+                    <CardContent sx={{ pb: 1.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <WorkIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          {doc.experience} yr{doc.experience !== 1 ? 's' : ''} experience
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                        {doc.rating != null && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <StarIcon fontSize="small" sx={{ color: '#f9a825' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {doc.rating} / 5
+                            </Typography>
+                          </Box>
+                        )}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CurrencyRupeeIcon fontSize="small" sx={{ color: 'success.main' }} />
+                          <Typography variant="body2" color="success.main" fontWeight={600}>
+                            ₹{doc.fees}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        startIcon={<EventAvailableIcon />}
+                        onClick={() => navigate(`/dashboard/book-appointment/${doc.id}`)}
+                        sx={{
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          bgcolor: meta.color,
+                          '&:hover': { bgcolor: meta.color, filter: 'brightness(0.9)' },
+                        }}
+                      >
+                        Book Appointment
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
         </Box>
       )}

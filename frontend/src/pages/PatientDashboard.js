@@ -2,15 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Container, Grid, Card, CardContent, Typography, Button, Box,
+  Container, Grid, Card, CardContent, Typography, Button, Box, useTheme, alpha,
 } from '@mui/material';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import PersonIcon from '@mui/icons-material/Person';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { userAPI, appointmentAPI, doctorAPI } from '../services/api';
+import StatCard from '../components/StatCard';
 
-/** Returns true only when all required patient fields are filled. */
 function isPatientProfileComplete(profile) {
   if (!profile) return false;
   return Boolean(profile.age && profile.gender && profile.bloodGroup);
@@ -19,166 +20,181 @@ function isPatientProfileComplete(profile) {
 export default function PatientDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const theme    = useTheme();
+  const isDark   = theme.palette.mode === 'dark';
+
   const [profile, setProfile]               = useState(null);
   const [upcomingCount, setUpcomingCount]   = useState(null);
   const [availableCount, setAvailableCount] = useState(null);
 
   useEffect(() => {
-    userAPI.getProfile()
-      .then(({ data }) => setProfile(data))
-      .catch(() => {});
-
+    userAPI.getProfile().then(({ data }) => setProfile(data)).catch(() => {});
     appointmentAPI.getAll()
       .then(({ data }) => {
-        const count = data.filter(
-          (a) => a.status === 'PENDING' || a.status === 'CONFIRMED'
-        ).length;
+        const count = data.filter((a) => a.status === 'PENDING' || a.status === 'CONFIRMED').length;
         setUpcomingCount(count);
       })
       .catch(() => setUpcomingCount(0));
-
     doctorAPI.getAvailable()
-      .then(({ data }) => {
-        // endpoint returns a plain list of doctor objects
-        setAvailableCount(Array.isArray(data) ? data.length : 0);
-      })
+      .then(({ data }) => setAvailableCount(Array.isArray(data) ? data.length : 0))
       .catch(() => setAvailableCount(0));
   }, []);
 
   const profileComplete = isPatientProfileComplete(profile);
-  // Show nothing until the profile is loaded so it doesn't flash "Incomplete"
-  const profileLabel   = profile === null ? '…' : profileComplete ? 'Complete' : 'Incomplete';
-  const profileColor   = profileComplete ? '#2e7d32' : '#d32f2f';
-  const profileBg      = profileComplete ? '#e8f5e9'  : '#ffebee';
-  const profileBorder  = profileComplete ? '#2e7d32'  : '#d32f2f';
-
-  const SUMMARY_CARDS = [
-    {
-      title: 'Upcoming Appointments',
-      value: upcomingCount === null ? '…' : String(upcomingCount),
-      icon: <CalendarTodayIcon sx={{ fontSize: 40, color: '#1976d2' }} />,
-      color: '#e3f2fd',
-      borderColor: '#1976d2',
-      onClick: () => navigate('/dashboard/appointments'),
-    },
-    {
-      title: 'Available Doctors',
-      value: availableCount === null ? '…' : String(availableCount),
-      icon: <LocalHospitalIcon sx={{ fontSize: 40, color: '#2e7d32' }} />,
-      color: '#e8f5e9',
-      borderColor: '#2e7d32',
-      onClick: () => navigate('/dashboard/doctors'),
-    },
-    {
-      title: 'Profile Status',
-      value: profileLabel,
-      icon: <PersonIcon sx={{ fontSize: 40, color: profileColor }} />,
-      color: profileBg,
-      borderColor: profileBorder,
-      onClick: !profileComplete && profile !== null ? () => navigate('/dashboard/profile') : undefined,
-    },
-  ];
+  const profileAccent   = profileComplete ? theme.palette.success.main : theme.palette.error.main;
 
   return (
     <Container maxWidth="lg">
-      {/* Welcome message */}
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Welcome back, {user?.username ?? 'User'}!
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Here's a summary of your healthcare activity.
-      </Typography>
+      {/* Hero */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={800} gutterBottom>
+          Welcome back, {user?.username ?? 'User'} 👋
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Here's a summary of your healthcare activity.
+        </Typography>
+      </Box>
 
-      {/* Summary cards */}
+      {/* Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {SUMMARY_CARDS.map(({ title, value, icon, color, borderColor, onClick }) => (
-          <Grid item xs={12} sm={4} key={title}>
-            <Card
-              elevation={2}
-              onClick={onClick}
-              sx={{
-                bgcolor: color,
-                borderLeft: `5px solid ${borderColor}`,
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                cursor: onClick ? 'pointer' : 'default',
-                '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 },
-              }}
-            >
-              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 3 }}>
-                {icon}
-                <Box>
-                  <Typography variant="h4" fontWeight="bold" color={title === 'Profile Status' ? profileColor : 'inherit'}>
-                    {value}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {title}
-                  </Typography>
-                  {title === 'Profile Status' && !profileComplete && profile !== null && (
-                    <Typography variant="caption" color="error">
-                      Tap to complete your profile
-                    </Typography>
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+        <Grid item xs={12} sm={4}>
+          <StatCard
+            index={0}
+            title="Upcoming Appointments"
+            value={upcomingCount}
+            loading={upcomingCount === null}
+            icon={<CalendarTodayIcon sx={{ fontSize: 28 }} />}
+            accent={theme.palette.primary.main}
+            onClick={() => navigate('/dashboard/appointments')}
+          />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <StatCard
+            index={1}
+            title="Available Doctors"
+            value={availableCount}
+            loading={availableCount === null}
+            icon={<LocalHospitalIcon sx={{ fontSize: 28 }} />}
+            accent={theme.palette.success.main}
+            onClick={() => navigate('/dashboard/doctors')}
+          />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <StatCard
+            index={2}
+            title="Profile Status"
+            value={profile === null ? '…' : profileComplete ? 'Complete' : 'Incomplete'}
+            icon={<PersonIcon sx={{ fontSize: 28 }} />}
+            accent={profileAccent}
+            subtitle={!profileComplete && profile !== null ? 'Tap to complete your profile' : undefined}
+            onClick={!profileComplete && profile !== null ? () => navigate('/dashboard/profile') : undefined}
+          />
+        </Grid>
       </Grid>
 
       {/* Quick Actions */}
-      <Card elevation={2} sx={{ p: 1, mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" fontWeight="bold" gutterBottom>
-            Quick Actions
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={<CalendarTodayIcon />}
-              onClick={() => navigate('/dashboard/doctors')}
-              sx={{ bgcolor: '#1976d2', textTransform: 'none', px: 3 }}
-            >
-              Book Appointment
-            </Button>
-            <Button
-              variant="outlined"
-              size="large"
-              startIcon={<LocalHospitalIcon />}
-              onClick={() => navigate('/dashboard/doctors')}
-              sx={{ borderColor: '#2e7d32', color: '#2e7d32', textTransform: 'none', px: 3 }}
-            >
-              Browse Doctors
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* AI Symptom Checker */}
-      <Card elevation={2} sx={{
-        background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
-        color: '#fff',
+      <Box sx={{
+        mb: 3,
+        opacity: 0,
+        animation: 'fadeUp 0.5s 0.28s ease both',
+        '@keyframes fadeUp': {
+          from: { opacity: 0, transform: 'translateY(12px)' },
+          to:   { opacity: 1, transform: 'translateY(0)' },
+        },
       }}>
-        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5 }}>
+          Quick Actions
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<CalendarTodayIcon />}
+            onClick={() => navigate('/dashboard/doctors')}
+            sx={{ px: 3, py: 1.2 }}
+          >
+            Book Appointment
+          </Button>
+          <Button
+            variant="outlined"
+            size="large"
+            color="success"
+            startIcon={<LocalHospitalIcon />}
+            onClick={() => navigate('/dashboard/doctors')}
+            sx={{ px: 3, py: 1.2 }}
+          >
+            Browse Doctors
+          </Button>
+        </Box>
+      </Box>
+
+      {/* AI Assistant */}
+      <Card
+        onClick={() => navigate('/dashboard/chat')}
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          color: '#fff',
+          background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 55%, ${theme.palette.primary.light} 100%)`,
+          boxShadow: `0 18px 36px ${alpha(theme.palette.primary.main, isDark ? 0.45 : 0.35)}`,
+          opacity: 0,
+          animation: 'fadeUp 0.55s 0.36s ease both',
+          '&:hover': { transform: 'translateY(-3px)' },
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)',
+            transform: 'translateX(-100%)',
+            animation: 'shimmer 3.6s ease-in-out infinite',
+          },
+          '@keyframes shimmer': {
+            '0%':   { transform: 'translateX(-100%)' },
+            '55%':  { transform: 'translateX(100%)' },
+            '100%': { transform: 'translateX(100%)' },
+          },
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            right: -40, bottom: -40,
+            width: 180, height: 180, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.1)',
+          },
+        }}
+      >
+        <CardContent sx={{
+          position: 'relative',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 2, py: 3.5, zIndex: 1,
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <SmartToyIcon sx={{ fontSize: 44, opacity: 0.9 }} />
+            <Box sx={{
+              width: 60, height: 60, borderRadius: 3,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.3)',
+            }}>
+              <SmartToyIcon sx={{ fontSize: 34 }} />
+            </Box>
             <Box>
-              <Typography variant="h6" fontWeight="bold">AI Health Assistant</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              <Typography variant="h6" fontWeight={800}>AI Health Assistant</Typography>
+              <Typography variant="body2" sx={{ opacity: 0.92, maxWidth: 480 }}>
                 Not sure which doctor to see? Describe your symptoms and get an instant recommendation.
               </Typography>
             </Box>
           </Box>
           <Button
             variant="contained"
-            onClick={() => navigate('/dashboard/chat')}
+            endIcon={<ArrowForwardIcon />}
             sx={{
-              bgcolor: '#fff', color: '#1976d2', fontWeight: 'bold',
-              textTransform: 'none', px: 3,
-              '&:hover': { bgcolor: '#e3f2fd' },
+              bgcolor: '#fff', color: 'primary.main', fontWeight: 700,
+              px: 3, py: 1.2,
+              '&:hover': { bgcolor: alpha('#ffffff', 0.9), transform: 'translateY(-1px)' },
             }}
           >
-            Talk to AI Assistant
+            Talk to Assistant
           </Button>
         </CardContent>
       </Card>
