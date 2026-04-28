@@ -21,4 +21,13 @@ public class AppointmentResponse {
     private String symptoms;
     private String notes;
     private LocalDateTime createdAt;
+
+    /** Latest payment id linked to this appointment (null if not yet paid). */
+    private String paymentId;
+
+    /** Consultation fee snapshot at booking time, in INR. */
+    private Double fee;
+
+    /** Status of the linked payment (CREATED, PAID, FAILED, REFUNDED) — null if no payment. */
+    private String paymentStatus;
 }

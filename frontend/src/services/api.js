@@ -67,6 +67,13 @@ export const appointmentAPI = {
   cancel: (id) => api.delete(`/appointments/${id}`),
 };
 
+// ─── Payment API ──────────────────────────────────────────────────────────────
+export const paymentAPI = {
+  createOrder: (appointmentId) => api.post('/payments/create-order', { appointmentId }),
+  verify: (payload) => api.post('/payments/verify', payload),
+  history: () => api.get('/payments/history'),
+};
+
 // ─── Calendar API ─────────────────────────────────────────────────────────────
 export const calendarAPI = {
   getLinks:    (id) => api.get(`/appointments/${id}/calendar/links`),

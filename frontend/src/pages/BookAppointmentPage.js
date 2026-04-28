@@ -9,7 +9,7 @@ import CurrencyRupeeIcon from '@mui/icons-material/CurrencyRupee';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { doctorAPI, appointmentAPI } from '../services/api';
+import { doctorAPI, appointmentAPI, paymentAPI } from '../services/api';
 import { useSnackbar } from '../context/SnackbarContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -35,6 +35,26 @@ function fmtDay(dateStr) {
 
 function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString('en-IN', { timeStyle: 'short' });
+}
+
+// Lazy-loads the Razorpay checkout.js script. Resolves true when window.Razorpay is ready.
+function loadRazorpayScript() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const existing = document.querySelector('script[data-razorpay="1"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(!!window.Razorpay));
+      existing.addEventListener('error', () => resolve(false));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.dataset.razorpay = '1';
+    script.onload  = () => resolve(!!window.Razorpay);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 }
 
 export default function BookAppointmentPage() {
@@ -80,6 +100,52 @@ export default function BookAppointmentPage() {
     return '';
   };
 
+  // Opens the Razorpay checkout modal for an appointment that came back PENDING_PAYMENT.
+  // On success, calls /payments/verify and resolves with the verification response.
+  const startRazorpayCheckout = (appointment, order) => new Promise((resolve, reject) => {
+    if (!order.liveMode) {
+      // Demo mode — backend will accept any (orderId, paymentId, signature).
+      // We fake a payment id and verify directly so the UX still feels real.
+      paymentAPI.verify({
+        razorpayOrderId:   order.orderId,
+        razorpayPaymentId: 'pay_demo_' + Math.random().toString(36).slice(2, 14),
+        razorpaySignature: 'demo',
+      }).then((r) => resolve(r.data)).catch(reject);
+      return;
+    }
+
+    const options = {
+      key:      order.keyId,
+      amount:   Math.round(order.amount * 100),
+      currency: order.currency || 'INR',
+      name:     'Smart Healthcare',
+      description: `Consultation with Dr. ${doctor?.name ?? ''}`,
+      order_id: order.orderId,
+      handler: async (resp) => {
+        try {
+          const { data } = await paymentAPI.verify({
+            razorpayOrderId:   resp.razorpay_order_id,
+            razorpayPaymentId: resp.razorpay_payment_id,
+            razorpaySignature: resp.razorpay_signature,
+          });
+          resolve(data);
+        } catch (err) {
+          reject(err);
+        }
+      },
+      prefill: { name: '', email: '' },
+      theme: { color: '#1976d2' },
+      modal: {
+        ondismiss: () => reject(new Error('Payment cancelled')),
+      },
+    };
+    const rzp = new window.Razorpay(options);
+    rzp.on('payment.failed', (resp) => {
+      reject(new Error(resp.error?.description ?? 'Payment failed'));
+    });
+    rzp.open();
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const err = validate();
@@ -88,14 +154,43 @@ export default function BookAppointmentPage() {
     setFormError('');
     setSubmitting(true);
     try {
-      const { data } = await appointmentAPI.create({
+      const { data: appointment } = await appointmentAPI.create({
         doctorId,
         dateTime: `${appointmentDate}T${appointmentTime}:00`,
         symptoms: symptoms.trim(),
       });
-      setBooked(data);
-      success('Appointment booked successfully!');
-      setTimeout(() => navigate('/dashboard/appointments'), 3000);
+
+      // Free consultation — backend already returned PENDING; nothing more to do.
+      if (appointment.status !== 'PENDING_PAYMENT') {
+        setBooked(appointment);
+        success('Appointment booked successfully!');
+        setTimeout(() => navigate('/dashboard/appointments'), 3000);
+        return;
+      }
+
+      // Paid consultation — create Razorpay order and open the checkout modal.
+      const { data: order } = await paymentAPI.createOrder(appointment.id);
+
+      if (order.liveMode) {
+        const ok = await loadRazorpayScript();
+        if (!ok) {
+          setFormError('Could not load the Razorpay checkout. Please try again.');
+          return;
+        }
+      }
+
+      try {
+        await startRazorpayCheckout(appointment, order);
+        setBooked({ ...appointment, status: 'PENDING' });
+        success('Payment received — appointment booked!');
+        setTimeout(() => navigate('/dashboard/appointments'), 3000);
+      } catch (payErr) {
+        setFormError(
+          payErr.message === 'Payment cancelled'
+            ? 'Payment was cancelled. You can retry from your appointments page.'
+            : (payErr.response?.data?.message ?? payErr.message ?? 'Payment failed.')
+        );
+      }
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to book appointment. Please try again.');
     } finally {
@@ -304,7 +399,9 @@ export default function BookAppointmentPage() {
                       disabled={submitting || !!booked}
                       sx={{ py: 1.5 }}
                     >
-                      {submitting ? 'Booking…' : 'Book Appointment'}
+                      {submitting
+                        ? 'Processing…'
+                        : (doctor?.fees > 0 ? `Pay ₹${doctor.fees} & Book` : 'Book Appointment')}
                     </Button>
                   </Grid>
                 </Grid>

@@ -33,4 +33,10 @@ public class Appointment {
     private String notes;
 
     private LocalDateTime createdAt;
+
+    /** ID of the latest Payment record for this appointment, if any. */
+    private String paymentId;
+
+    /** Snapshot of the consultation fee at booking time, in INR. */
+    private Double fee;
 }

@@ -9,6 +9,7 @@ import org.example.exception.AppException;
 import org.example.model.Appointment;
 import org.example.model.AppointmentStatus;
 import org.example.model.Doctor;
+import org.example.model.Payment;
 import org.example.model.Role;
 import org.example.model.User;
 import org.example.repository.AppointmentRepository;
@@ -30,6 +31,8 @@ public class AppointmentService {
     private final DoctorRepository doctorRepository;
     private final SlotManagementService slotManagementService;
     private final EmailService emailService;
+    private final PaymentService paymentService;
+    private final org.example.repository.PaymentRepository paymentRepository;
 
     // ─── Create ──────────────────────────────────────────────────────────────
 
@@ -52,34 +55,50 @@ public class AppointmentService {
                     "You already have an appointment with this doctor at that time", HttpStatus.CONFLICT);
         }
 
-        // Guard: slot must still be in the doctor's available list (prevents double-booking)
-        List<LocalDateTime> available = doctor.getAvailableSlots();
-        if (available == null || !available.contains(request.getDateTime())) {
+        // Atomic slot reservation — fails fast if a concurrent booking already took it.
+        boolean reserved = slotManagementService.reserveSlotAtomically(
+                doctor.getId(), request.getDateTime());
+        if (!reserved) {
             throw new AppException(
                     "The selected slot is no longer available", HttpStatus.CONFLICT);
         }
+
+        // Free consultations skip payment and go straight to PENDING (awaiting doctor approval).
+        boolean paymentRequired = doctor.getFees() > 0;
+        AppointmentStatus initialStatus = paymentRequired
+                ? AppointmentStatus.PENDING_PAYMENT
+                : AppointmentStatus.PENDING;
 
         Appointment appointment = new Appointment();
         appointment.setPatientId(patient.getId());
         appointment.setDoctorId(request.getDoctorId());
         appointment.setDateTime(request.getDateTime());
-        appointment.setStatus(AppointmentStatus.PENDING);
+        appointment.setStatus(initialStatus);
         appointment.setSymptoms(request.getSymptoms());
         appointment.setNotes(request.getNotes());
         appointment.setCreatedAt(LocalDateTime.now());
+        appointment.setFee(paymentRequired ? doctor.getFees() : null);
 
-        // Save the appointment first; only remove the slot on success
-        AppointmentResponse response = toResponse(appointmentRepository.save(appointment));
-        slotManagementService.removeBookedSlot(doctor, request.getDateTime());
-
-        // Notify patient that booking is received — doctor still needs to confirm
+        Appointment saved;
         try {
-            emailService.sendAppointmentBooked(appointment, patient, doctor);
-        } catch (Exception e) {
-            log.warn("[EMAIL] Failed to trigger booked email for appointment {}: {}", appointment.getId(), e.getMessage());
+            saved = appointmentRepository.save(appointment);
+        } catch (RuntimeException e) {
+            // Roll back the slot reservation so the doctor's availability is consistent.
+            slotManagementService.restoreSlot(doctor.getId(), request.getDateTime());
+            throw e;
         }
 
-        return response;
+        // Notify patient that booking is received. (For paid bookings, a separate
+        // payment receipt email is sent once Razorpay verification succeeds.)
+        if (!paymentRequired) {
+            try {
+                emailService.sendAppointmentBooked(saved, patient, doctor);
+            } catch (Exception e) {
+                log.warn("[EMAIL] Failed to trigger booked email for appointment {}: {}", saved.getId(), e.getMessage());
+            }
+        }
+
+        return toResponse(saved);
     }
 
     // ─── Read ─────────────────────────────────────────────────────────────────
@@ -205,8 +224,30 @@ public class AppointmentService {
             throw new AppException("You are not allowed to cancel this appointment", HttpStatus.FORBIDDEN);
         }
 
+        AppointmentStatus prevStatus = appointment.getStatus();
         appointment.setStatus(AppointmentStatus.CANCELLED);
-        AppointmentResponse cancelled = toResponse(appointmentRepository.save(appointment));
+        Appointment savedCancelled = appointmentRepository.save(appointment);
+        AppointmentResponse cancelled = toResponse(savedCancelled);
+
+        // Restore the slot if the appointment is still in the future.
+        if (appointment.getDateTime() != null && appointment.getDateTime().isAfter(LocalDateTime.now())) {
+            try {
+                slotManagementService.restoreSlot(appointment.getDoctorId(), appointment.getDateTime());
+            } catch (Exception e) {
+                log.warn("[SLOT] Could not restore slot for cancelled appointment {}: {}",
+                        appointment.getId(), e.getMessage());
+            }
+        }
+
+        // Auto-refund any PAID payment linked to this appointment.
+        if (prevStatus != AppointmentStatus.PENDING_PAYMENT) {
+            try {
+                paymentService.refundForAppointment(savedCancelled);
+            } catch (Exception e) {
+                log.warn("[PAYMENT] Refund attempt failed for appointment {}: {}",
+                        appointment.getId(), e.getMessage());
+            }
+        }
 
         // Send cancellation email (async)
         try {
@@ -240,10 +281,20 @@ public class AppointmentService {
                 .map(User::getUsername).orElse("Unknown");
         String doctorName  = userRepository.findById(a.getDoctorId())
                 .map(User::getUsername).orElse("Unknown");
+
+        String paymentStatus = null;
+        if (a.getPaymentId() != null) {
+            Payment p = paymentRepository.findById(a.getPaymentId()).orElse(null);
+            if (p != null && p.getStatus() != null) {
+                paymentStatus = p.getStatus().name();
+            }
+        }
+
         return new AppointmentResponse(
                 a.getId(), a.getPatientId(), patientName,
                 a.getDoctorId(), doctorName,
                 a.getDateTime(), a.getStatus(),
-                a.getSymptoms(), a.getNotes(), a.getCreatedAt());
+                a.getSymptoms(), a.getNotes(), a.getCreatedAt(),
+                a.getPaymentId(), a.getFee(), paymentStatus);
     }
 }

@@ -10,14 +10,22 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import EventIcon from '@mui/icons-material/Event';
 import DownloadIcon from '@mui/icons-material/Download';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import PaymentIcon from '@mui/icons-material/Payment';
 import ConfirmDialog from './ConfirmDialog';
-import { calendarAPI } from '../services/api';
+import { calendarAPI, paymentAPI } from '../services/api';
 
 const STATUS_CHIP = {
+  PENDING_PAYMENT: { label: 'Awaiting Payment', color: 'warning' },
   PENDING:   { label: 'Pending',   color: 'warning' },
   CONFIRMED: { label: 'Confirmed', color: 'primary' },
   COMPLETED: { label: 'Completed', color: 'default' },
   CANCELLED: { label: 'Cancelled', color: 'error'   },
+};
+
+const PAYMENT_CHIP = {
+  PAID:     { label: 'Paid',     color: 'success' },
+  REFUNDED: { label: 'Refunded', color: 'info'    },
+  FAILED:   { label: 'Failed',   color: 'error'   },
 };
 
 function formatDT(dt) {
@@ -26,9 +34,12 @@ function formatDT(dt) {
 }
 
 export default function AppointmentCard({ appointment: a, userRole, onStatusChange, acting }) {
-  const chip     = STATUS_CHIP[a.status] ?? { label: a.status, color: 'default' };
-  const isActive = a.status === 'PENDING' || a.status === 'CONFIRMED';
-  const isPast   = a.dateTime && new Date(a.dateTime) < new Date();
+  const chip        = STATUS_CHIP[a.status] ?? { label: a.status, color: 'default' };
+  const paymentChip = PAYMENT_CHIP[a.paymentStatus];
+  const isActive    = a.status === 'PENDING' || a.status === 'CONFIRMED';
+  const isAwaitingPayment = a.status === 'PENDING_PAYMENT';
+  const isPast      = a.dateTime && new Date(a.dateTime) < new Date();
+  const [paying, setPaying] = useState(false);
 
   // Confirm dialog state for destructive actions
   const [confirmAction, setConfirmAction] = useState(null); // { statusKey, title, message, label }
@@ -66,6 +77,49 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
     }
   };
 
+  const handleResumePayment = async () => {
+    setPaying(true);
+    try {
+      const { data: order } = await paymentAPI.createOrder(a.id);
+
+      const verify = (paymentId, signature) => paymentAPI.verify({
+        razorpayOrderId:   order.orderId,
+        razorpayPaymentId: paymentId,
+        razorpaySignature: signature,
+      });
+
+      if (!order.liveMode) {
+        await verify('pay_demo_' + Math.random().toString(36).slice(2, 14), 'demo');
+        if (onStatusChange) onStatusChange(a.id, '__refresh__');
+        return;
+      }
+
+      // Live mode — load Razorpay script and open checkout
+      await new Promise((resolve, reject) => {
+        if (window.Razorpay) return resolve();
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = resolve; s.onerror = reject;
+        document.body.appendChild(s);
+      });
+
+      const rzp = new window.Razorpay({
+        key: order.keyId, amount: Math.round(order.amount * 100),
+        currency: order.currency || 'INR', order_id: order.orderId,
+        name: 'Smart Healthcare',
+        handler: async (resp) => {
+          await verify(resp.razorpay_payment_id, resp.razorpay_signature);
+          if (onStatusChange) onStatusChange(a.id, '__refresh__');
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      console.error('[Payment] Resume failed', err);
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const handleOpenCalendarLink = async (type) => {
     setCalAnchor(null);
     setCalLoading(true);
@@ -98,7 +152,12 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
                 {formatDT(a.dateTime)}
               </Typography>
             </Box>
-            <Chip label={chip.label} color={chip.color} size="small" />
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Chip label={chip.label} color={chip.color} size="small" />
+              {paymentChip && (
+                <Chip label={paymentChip.label} color={paymentChip.color} size="small" variant="outlined" />
+              )}
+            </Box>
           </Box>
 
           <Divider sx={{ mb: 1.5 }} />
@@ -161,11 +220,27 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
             </Box>
           )}
 
+          {/* Resume payment CTA */}
+          {userRole === 'PATIENT' && isAwaitingPayment && a.fee > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                startIcon={<PaymentIcon />}
+                onClick={handleResumePayment}
+                disabled={paying}
+              >
+                {paying ? 'Opening checkout…' : `Pay ₹${a.fee} now`}
+              </Button>
+            </Box>
+          )}
+
           {/* Action buttons */}
-          {isActive && onStatusChange && (
+          {(isActive || isAwaitingPayment) && onStatusChange && (
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
               {/* Patient: cancel PENDING only */}
-              {userRole === 'PATIENT' && a.status === 'PENDING' && (
+              {userRole === 'PATIENT' && (a.status === 'PENDING' || a.status === 'PENDING_PAYMENT') && (
                 <Button size="small" variant="outlined" color="error"
                   startIcon={<CancelIcon />} disabled={acting}
                   onClick={() => requestConfirm(

@@ -86,6 +86,40 @@ public class EmailService {
                 patient.getEmail(), doctor.getEmail(), appt.getId());
     }
 
+    /** Sent when Razorpay payment is verified — includes amount and transaction id. */
+    @Async
+    public void sendPaymentReceipt(Appointment appt, User patient, Doctor doctor,
+                                   double amount, String transactionId) {
+        if (!isConfigured()) {
+            log.info("[EMAIL-SKIP] Payment receipt skipped for appointment {}", appt.getId());
+            return;
+        }
+        log.info("[EMAIL] Attempting payment receipt → patient={} appointment={} amount={}",
+                patient.getEmail(), appt.getId(), amount);
+        String subject = "Payment Received – Smart Healthcare";
+        String body    = buildPaymentReceiptHtml(appt, patient, doctor, amount, transactionId);
+        send(patient.getEmail(), subject, body);
+        log.info("[EMAIL] ✅ Payment receipt sent → patient={}, appointment={}",
+                patient.getEmail(), appt.getId());
+    }
+
+    /** Sent when an appointment that was paid for gets cancelled and a refund is issued. */
+    @Async
+    public void sendRefundNotification(Appointment appt, User patient, Doctor doctor,
+                                       double amount, String refundId) {
+        if (!isConfigured()) {
+            log.info("[EMAIL-SKIP] Refund notification skipped for appointment {}", appt.getId());
+            return;
+        }
+        log.info("[EMAIL] Attempting refund notification → patient={} appointment={} amount={}",
+                patient.getEmail(), appt.getId(), amount);
+        String subject = "Refund Issued – Smart Healthcare";
+        String body    = buildRefundHtml(appt, patient, doctor, amount, refundId);
+        send(patient.getEmail(), subject, body);
+        log.info("[EMAIL] ✅ Refund notification sent → patient={}, appointment={}",
+                patient.getEmail(), appt.getId());
+    }
+
     @Async
     public void sendAppointmentCancellation(Appointment appt, User patient, Doctor doctor) {
         if (!isConfigured()) {
@@ -202,6 +236,41 @@ public class EmailService {
             "<p>Your appointment has been <strong style='color:#c62828'>cancelled</strong>.</p>" +
             buildDetailsTable(doctor, when, appt.getSymptoms()) +
             "<p style='margin-top:20px'>You can book a new appointment anytime through Smart Healthcare.</p>"
+        );
+    }
+
+    private String buildPaymentReceiptHtml(Appointment appt, User patient, Doctor doctor,
+                                           double amount, String txnId) {
+        String when = appt.getDateTime() != null ? appt.getDateTime().format(DATE_FMT) : "—";
+        return wrapLayout("Payment Received ✓", "#2e7d32",
+            "<p>Dear <strong>" + patient.getUsername() + "</strong>,</p>" +
+            "<p>We've received your payment of <strong style='color:#2e7d32'>₹" +
+            String.format("%.2f", amount) + "</strong> for the consultation below.</p>" +
+            buildDetailsTable(doctor, when, appt.getSymptoms()) +
+            "<table style='border-collapse:collapse;width:100%;margin-top:12px'>" +
+            row("Amount Paid", "₹" + String.format("%.2f", amount)) +
+            row("Transaction ID", txnId != null ? txnId : "—") +
+            "</table>" +
+            "<p style='margin-top:20px;padding:12px;background:#fff8e1;border-left:4px solid #f9a825;border-radius:4px'>" +
+            "⏳ Your appointment is now <strong>awaiting doctor approval</strong>. " +
+            "You'll receive another email once Dr. " + doctor.getUsername() + " confirms." +
+            "</p>"
+        );
+    }
+
+    private String buildRefundHtml(Appointment appt, User patient, Doctor doctor,
+                                   double amount, String refundId) {
+        String when = appt.getDateTime() != null ? appt.getDateTime().format(DATE_FMT) : "—";
+        return wrapLayout("Refund Issued", "#1565c0",
+            "<p>Dear <strong>" + patient.getUsername() + "</strong>,</p>" +
+            "<p>A refund of <strong style='color:#1565c0'>₹" +
+            String.format("%.2f", amount) + "</strong> has been issued for your cancelled appointment.</p>" +
+            buildDetailsTable(doctor, when, appt.getSymptoms()) +
+            "<table style='border-collapse:collapse;width:100%;margin-top:12px'>" +
+            row("Refund Amount", "₹" + String.format("%.2f", amount)) +
+            row("Refund ID", refundId != null ? refundId : "—") +
+            "</table>" +
+            "<p style='margin-top:20px'>The amount should reflect in your original payment method within 5–7 business days.</p>"
         );
     }
 

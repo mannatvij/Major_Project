@@ -5,6 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.model.Doctor;
 import org.example.model.Role;
 import org.example.repository.DoctorRepository;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +26,7 @@ public class SlotManagementService {
     public static final int[] SLOT_HOURS = {9, 11, 13, 15, 17};
 
     private final DoctorRepository doctorRepository;
+    private final MongoTemplate mongoTemplate;
 
     // ─── Scheduled maintenance ────────────────────────────────────────────────
 
@@ -48,6 +53,34 @@ public class SlotManagementService {
      * Removes one specific slot from a doctor's availableSlots and saves immediately.
      * Ensures the slot cannot be double-booked by a second patient.
      */
+    /**
+     * Atomically removes a slot from the doctor's availableSlots using MongoDB $pull.
+     * The query matches only if the slot is still present, so two concurrent bookings
+     * for the same slot cannot both succeed. Returns true if this caller won the race.
+     */
+    public boolean reserveSlotAtomically(String doctorId, LocalDateTime slot) {
+        Query query = new Query(Criteria.where("_id").is(doctorId)
+                .and("availableSlots").is(slot));
+        Update update = new Update().pull("availableSlots", slot);
+        long modified = mongoTemplate.updateFirst(query, update, Doctor.class).getModifiedCount();
+        if (modified == 0) {
+            log.warn("Atomic slot reservation failed for doctor {} slot {}", doctorId, slot);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Restores a slot back into a doctor's availableSlots — used when a booking is
+     * rolled back (e.g. payment failure) or an appointment is cancelled while still
+     * in the future.
+     */
+    public void restoreSlot(String doctorId, LocalDateTime slot) {
+        Query query = new Query(Criteria.where("_id").is(doctorId));
+        Update update = new Update().addToSet("availableSlots", slot);
+        mongoTemplate.updateFirst(query, update, Doctor.class);
+    }
+
     public void removeBookedSlot(Doctor doctor, LocalDateTime bookedSlot) {
         List<LocalDateTime> slots = new ArrayList<>(
                 doctor.getAvailableSlots() == null ? List.of() : doctor.getAvailableSlots());
