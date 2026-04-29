@@ -11,6 +11,7 @@ import EventIcon from '@mui/icons-material/Event';
 import DownloadIcon from '@mui/icons-material/Download';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PaymentIcon from '@mui/icons-material/Payment';
+import DescriptionIcon from '@mui/icons-material/Description';
 import ConfirmDialog from './ConfirmDialog';
 import { calendarAPI, paymentAPI } from '../services/api';
 
@@ -33,7 +34,10 @@ function formatDT(dt) {
   return new Date(dt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function AppointmentCard({ appointment: a, userRole, onStatusChange, acting }) {
+export default function AppointmentCard({
+  appointment: a, userRole, onStatusChange, acting,
+  onPrescribe, onViewPrescription,
+}) {
   const chip        = STATUS_CHIP[a.status] ?? { label: a.status, color: 'default' };
   const paymentChip = PAYMENT_CHIP[a.paymentStatus];
   const isActive    = a.status === 'PENDING' || a.status === 'CONFIRMED';
@@ -111,6 +115,15 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
           await verify(resp.razorpay_payment_id, resp.razorpay_signature);
           if (onStatusChange) onStatusChange(a.id, '__refresh__');
         },
+        modal: {
+          ondismiss: () => {
+            paymentAPI.notifyFailure(order.orderId, 'Customer dismissed the checkout modal').catch(() => {});
+          },
+        },
+      });
+      rzp.on('payment.failed', (resp) => {
+        const reason = resp.error?.description ?? 'Payment failed.';
+        paymentAPI.notifyFailure(order.orderId, reason).catch(() => {});
       });
       rzp.open();
     } catch (err) {
@@ -217,6 +230,26 @@ export default function AppointmentCard({ appointment: a, userRole, onStatusChan
                   <ListItemText>Outlook Calendar</ListItemText>
                 </MenuItem>
               </Menu>
+            </Box>
+          )}
+
+          {/* Prescription actions (COMPLETED appointments) */}
+          {a.status === 'COMPLETED' && userRole === 'DOCTOR' && onPrescribe && (
+            <Box sx={{ mt: 2 }}>
+              <Button size="small" variant="outlined" color="primary"
+                startIcon={<DescriptionIcon />}
+                onClick={() => onPrescribe(a)}>
+                Prescription
+              </Button>
+            </Box>
+          )}
+          {a.status === 'COMPLETED' && userRole === 'PATIENT' && onViewPrescription && (
+            <Box sx={{ mt: 2 }}>
+              <Button size="small" variant="outlined" color="primary"
+                startIcon={<DescriptionIcon />}
+                onClick={() => onViewPrescription(a)}>
+                View prescription
+              </Button>
             </Box>
           )}
 

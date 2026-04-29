@@ -71,7 +71,26 @@ export const appointmentAPI = {
 export const paymentAPI = {
   createOrder: (appointmentId) => api.post('/payments/create-order', { appointmentId }),
   verify: (payload) => api.post('/payments/verify', payload),
+  notifyFailure: (razorpayOrderId, reason) =>
+    api.post('/payments/failed', { razorpayOrderId, reason }),
   history: () => api.get('/payments/history'),
+};
+
+// ─── Review API ───────────────────────────────────────────────────────────────
+export const reviewAPI = {
+  create: (payload) => api.post('/reviews', payload),
+  getByAppointment: (appointmentId) => api.get(`/reviews/appointment/${appointmentId}`),
+  listForDoctor: (doctorId, page = 0, size = 10) =>
+    api.get(`/reviews/doctor/${doctorId}?page=${page}&size=${size}`),
+};
+
+// ─── Prescription API ─────────────────────────────────────────────────────────
+export const prescriptionAPI = {
+  create: (payload) => api.post('/prescriptions', payload),
+  getByAppointment: (appointmentId) => api.get(`/prescriptions/appointment/${appointmentId}`),
+  mine: () => api.get('/prescriptions/mine'),
+  downloadPdf: (id) =>
+    api.get(`/prescriptions/${id}/pdf`, { responseType: 'blob' }).then((r) => r.data),
 };
 
 // ─── Calendar API ─────────────────────────────────────────────────────────────
@@ -103,6 +122,13 @@ export const adminAPI = {
     api.get(`/admin/users?page=${page}&size=${size}&role=${role}&search=${encodeURIComponent(search)}`),
   updateUserStatus: (id, active) => api.put(`/admin/users/${id}/status`, { active }),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
+  getActivity: (limit = 20) => api.get(`/admin/activity?limit=${limit}`),
+  getHealth: () => api.get('/admin/health'),
+  exportCsv: (type) =>
+    api.get(`/admin/export/${type}`, { responseType: 'blob' }).then((r) => r.data),
+  getPendingDoctors: () => api.get('/admin/doctors/pending'),
+  approveDoctor: (id) => api.put(`/admin/doctors/${id}/approve`),
+  rejectDoctor:  (id) => api.put(`/admin/doctors/${id}/reject`),
 };
 
 export default api;

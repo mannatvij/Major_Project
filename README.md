@@ -1,454 +1,597 @@
-# Smart Healthcare System
+# Smart Healthcare System — Major Project
 
-A full-stack web application that connects **patients** with **doctors** for booking and managing medical appointments online. Think of it like a simple hospital portal — patients can find doctors, book appointment slots, and track their status, while doctors can manage their schedule and update patients.
+A full-stack healthcare appointment platform that connects **patients**, **doctors**, and **admins** through a single web application. Patients can find a doctor with the help of an **AI symptom-checker**, book and pay for an appointment online, get **email confirmations + calendar invites**, receive a **digital prescription PDF**, and **rate the doctor** afterwards. Doctors manage their availability, accept/reject requests, issue prescriptions and view their reviews. Admins approve doctor signups, monitor revenue/usage with **charts**, manage users, and **export data as CSV**.
+
+This README is the single reference you need during your presentation — every screen, button, endpoint, and how the pieces talk to each other is captured below.
 
 ---
 
 ## Table of Contents
 
-1. [What This App Does](#what-this-app-does)
-2. [How It Works — The Simple Version](#how-it-works--the-simple-version)
+1. [The Three Roles & What They Do](#the-three-roles--what-they-do)
+2. [Complete Feature List (with buttons)](#complete-feature-list-with-buttons)
 3. [Technology Stack](#technology-stack)
-4. [Backend — How It Works](#backend--how-it-works)
-5. [Frontend — How It Works](#frontend--how-it-works)
-6. [All Features Built](#all-features-built)
-7. [API Reference](#api-reference)
-8. [Project Structure](#project-structure)
-9. [Running the Project](#running-the-project)
-10. [What Can Be Added Next](#what-can-be-added-next)
+4. [System Architecture — End-to-End Flow](#system-architecture--end-to-end-flow)
+5. [Backend — How It Works](#backend--how-it-works)
+6. [Frontend — How It Works](#frontend--how-it-works)
+7. [The Python ML Microservice](#the-python-ml-microservice)
+8. [Major Workflows Explained Step-by-Step](#major-workflows-explained-step-by-step)
+9. [API Reference (every endpoint)](#api-reference-every-endpoint)
+10. [Data Models](#data-models)
+11. [Project Structure](#project-structure)
+12. [Running the Project](#running-the-project)
+13. [Talking Points for the Presentation](#talking-points-for-the-presentation)
 
 ---
 
-## What This App Does
+## The Three Roles & What They Do
 
-Imagine you want to see a doctor. Normally you call a clinic, wait on hold, and try to find a time that works. This app replaces that process entirely:
-
-- **As a Patient** — you register, browse available doctors (filter by specialization), pick a time slot, describe your symptoms, and book. You can then track whether the doctor has confirmed your appointment.
-- **As a Doctor** — you log in, see your incoming appointment requests, accept or reject them, mark them as completed, and manage which time slots you are available on.
-
-Everything happens through a clean web interface, without needing to call anyone.
+| Role | Sees | Can Do |
+|---|---|---|
+| **Patient** | Patient dashboard, AI chat, doctors list, appointments, payments, prescriptions, profile | Register, login, chat with AI, browse/search doctors, book + pay, cancel, view prescriptions (PDF), rate doctor, edit profile, change password |
+| **Doctor** | Doctor dashboard, appointment requests, availability manager, profile | Login, accept/reject/complete appointments, manage time slots, issue prescriptions, view own reviews/rating, edit professional profile |
+| **Admin** | Admin dashboard with charts, user list, doctor approvals, system health | View KPIs, approve/reject new doctors, activate/deactivate users, delete users, export CSV (users/appointments/payments/reviews), see live activity feed and system health |
 
 ---
 
-## How It Works — The Simple Version
+## Complete Feature List (with buttons)
 
-```
-[ Patient / Doctor opens browser ]
-             |
-             v
-  [ React Frontend (runs in browser) ]
-             |
-             |  sends requests over HTTP
-             v
-  [ Spring Boot Backend (runs on server) ]
-             |
-             |  reads / writes data
-             v
-  [ MongoDB Database (stores everything) ]
-```
+### Authentication & Account
+- **Login page** — Login, "Don't have an account? Register" link
+- **Register page** — role selector (Patient / Doctor), Register button
+- Doctor signups land in **Pending Approval** state — they see a banner until admin approves
+- JWT token stored in `localStorage`; auto-attached to every request
+- Auto-logout on 401 (token expiry) — redirects to `/login`
+- **Logout** button (top bar) with confirmation dialog
+- **Change Password** dialog (validates current password + min 6 chars + match)
 
-1. The **frontend** is the visual part — buttons, forms, pages — that runs in your browser.
-2. When you do something (like "Book Appointment"), the frontend sends a message to the **backend**.
-3. The **backend** processes that request, checks your identity, applies business rules, and talks to the **database**.
-4. The database permanently stores all users, appointments, and doctor schedules.
-5. The backend sends the result back to the frontend, which updates the screen.
+### Patient Features
+- **Patient Dashboard** — stat cards (upcoming count, available doctors, prescription count) + quick actions
+- **AI Symptom Checker** (`/dashboard/chat`) — chat bubble UI; Send button; "Reset / New chat" button; recommended doctor cards inline at end of conversation; falls back to rule-based matcher if Python ML service is offline
+- **Browse Doctors** — debounced name search, specialization filter chips, pagination (9 per page); doctor cards show rating, fees, reviewCount, View Profile + Book Appointment buttons
+- **Doctor Profile Page** — bio, qualifications, fees, full review list with stars, Book Appointment button
+- **Book Appointment Page** — day-grouped slot picker, symptoms textarea, **Confirm & Pay** button → opens Razorpay checkout
+- **Razorpay Checkout** — UPI / Card / NetBanking; on success → confirmation email + calendar links; on failure → "Try Again" button
+- **My Appointments** — tabs: Upcoming / Past / Cancelled; auto-refreshes every 30s
+- **Appointment Card buttons** (patient): Cancel (with confirmation), **Add to Calendar** (Google / Outlook / .ics download), **View Prescription** (after completion), **Rate Doctor** (after completion, 1-5 stars + comment)
+- **Prescription Dialog** — view medications (name, dosage, frequency, duration), notes, **Download PDF** button
+- **Rating Dialog** — interactive 5-star picker, optional comment, Submit
+- **Notification Bell** (top bar) — shows confirmed appointments in next 24h
+- **Profile Page** — view & edit age, gender, blood group, medical history; Change Password
 
-Your identity is verified using a **JWT token** — a small piece of encrypted text your browser holds after you log in. Every request to the backend includes this token so the server knows who you are without you having to log in again on every click.
+### Doctor Features
+- **Doctor Dashboard** — today's appointment count, pending requests, confirmed count, today's schedule preview, Manage Availability quick action
+- **Appointments Page** — filter buttons (All / Pending / Confirmed / Completed); per-card actions: **Accept**, **Reject** (confirm), **Mark Complete**, **Cancel** (confirm), **Issue Prescription**
+- **Prescription Dialog** (doctor) — add medication rows (name, dosage, frequency, duration), notes textarea, Save
+- **Manage Availability** — add date+time slot button, remove slot chip, Save Changes button (replaces the doctor's slot list on the backend)
+- **Profile Page** — edit specialization, experience, qualification, fees, bio
+- Pending-approval banner shown until admin approves the doctor
+
+### Admin Features
+- **Admin Dashboard** — recharts-powered:
+  - 4 KPI cards: Total Patients, Total Doctors, Total Appointments, Net Revenue
+  - Line chart: appointments per day (last 7 / 30 / 60 days dropdown)
+  - Bar chart: appointments by status (Pending / Confirmed / Completed / Cancelled)
+  - Pie chart: top 5 specializations by volume
+  - Revenue trend chart (PAID + REFUNDED grouped by paidAt)
+  - Top-rated doctors list, Recent reviews feed, Live activity feed
+  - System Health card: Mongo / Mailer / ML service / Razorpay status indicators
+- **User Management Page** — search, filter by role, paginated table; per-row actions: Activate / Deactivate, Delete (confirm)
+- **Doctor Approvals Page** — list of pending doctor signups; **Approve** / **Reject** buttons per row
+- **Export buttons** — Users CSV, Appointments CSV, Payments CSV, Reviews CSV
+
+### Cross-Cutting UX
+- **DashboardLayout** — top app bar (logo, role badge, notification bell, profile menu, logout) + sidebar (desktop) / bottom nav (mobile)
+- **PageTransition** — fade animation between routes
+- **LoadingSpinner**, **ErrorMessage** (with Retry), **EmptyState** on every list
+- **Toast notifications** (SnackbarContext) — success/error/info pop-ups for every action
+- **ConfirmDialog** — reusable "Are you sure?" before destructive actions
+- **ProtectedRoute** — redirects unauthenticated users to `/login`
+- **Lazy-loaded pages** (React.Suspense + React.lazy) for fast first-paint
+- Mobile-responsive layout
 
 ---
 
 ## Technology Stack
 
-### Backend
+### Backend (Java)
 
-| Technology | What it is | Why it is used |
+| Layer | Tech | Why |
 |---|---|---|
-| **Java 17** | Programming language | Main language for the server |
-| **Spring Boot 3.2** | Framework | Makes building REST APIs fast and structured |
-| **Spring Security** | Security framework | Handles login, JWT verification, and access control |
-| **Spring Data MongoDB** | Database connector | Lets Java code talk to MongoDB easily |
-| **MongoDB** | Database | Stores all data as flexible documents (no rigid tables) |
-| **JJWT 0.12** | JWT library | Creates and validates secure login tokens |
-| **Lombok** | Code helper | Eliminates repetitive Java boilerplate (getters, setters, constructors) |
-| **Springdoc OpenAPI** | API documentation | Auto-generates interactive API docs (Swagger UI) |
-| **Maven** | Build tool | Downloads dependencies and builds the project |
+| Language | **Java 17** | Modern LTS |
+| Framework | **Spring Boot 3.2.3** | REST API + DI + auto-config |
+| Security | **Spring Security + JJWT 0.12.5** | JWT-based stateless auth |
+| Database | **MongoDB** + Spring Data MongoDB | Flexible document store |
+| Email | **Spring Boot Starter Mail** (JavaMailSender) | Booking / confirmation / reminder mails |
+| Payments | **Razorpay Java SDK 1.4.6** | Real payment gateway w/ signature verification |
+| PDF | **OpenPDF 1.3.34** | Generate prescription PDFs |
+| Config | **spring-dotenv 4.0.0** | `.env` → Spring environment |
+| Docs | **Springdoc OpenAPI 2.3.0** | Auto-generated Swagger UI |
+| Boilerplate | **Lombok** | `@Data`, `@RequiredArgsConstructor` |
+| Build | **Maven 3.x** | Dependency + build |
+| Scheduling | `@Scheduled` cron | Daily reminder dispatcher |
+| Async | `@Async` | Non-blocking email send |
 
-### Frontend
+### Frontend (React)
 
-| Technology | What it is | Why it is used |
+| Tech | Version | Why |
 |---|---|---|
-| **React 19** | UI framework | Builds the interactive user interface |
-| **React Router v7** | Navigation | Handles page navigation without full page reloads |
-| **Material-UI (MUI) v7** | Component library | Pre-built, polished UI components (buttons, cards, dialogs, tables) |
-| **Axios** | HTTP client | Sends requests from the browser to the backend |
-| **Node.js / npm** | Runtime and package manager | Runs the React development server |
+| **React** | 19.2 | UI |
+| **React Router** | v7 | SPA routing + protected routes |
+| **Material-UI (MUI)** | v7 | Components + theme |
+| **Axios** | 1.13 | HTTP client + interceptors |
+| **Recharts** | 3.8 | Admin dashboard charts |
+| **Razorpay Checkout JS** | (CDN) | Payment popup |
+| **Playwright** | 1.59 | E2E test suite |
+
+### ML Microservice (Python)
+
+| Tech | Why |
+|---|---|
+| **Python 3 + Flask** | Lightweight REST API |
+| **scikit-learn** (TF-IDF + RandomForest) | Specialization & severity classification |
+| **joblib** | Model serialization (`.pkl`) |
+| **Flask-CORS** | Cross-origin from Spring Boot |
+
+---
+
+## System Architecture — End-to-End Flow
+
+```
+┌─────────────────────────┐
+│   Browser (React SPA)   │   localhost:3000
+│  ─ MUI components       │
+│  ─ Razorpay Checkout JS │
+└────────────┬────────────┘
+             │ HTTPS / JSON   Authorization: Bearer <JWT>
+             ▼
+┌─────────────────────────┐
+│  Spring Boot REST API   │   localhost:8080
+│  ─ Controllers          │
+│  ─ Services             │
+│  ─ Spring Security/JWT  │
+│  ─ @Scheduled, @Async   │
+└──┬─────┬─────┬─────┬────┘
+   │     │     │     │
+   │     │     │     └──► Razorpay API (orders, refunds, signature)
+   │     │     │
+   │     │     └────────► JavaMailSender → Gmail SMTP
+   │     │
+   │     └──────────────► Python Flask ML service  (localhost:5000)
+   │                       └─ TF-IDF + RandomForest models (.pkl)
+   ▼
+┌─────────────────────────┐
+│        MongoDB          │   localhost:27017
+│ users / appointments /  │
+│ payments / prescriptions│
+│ reviews / chatSessions /│
+│ reminders               │
+└─────────────────────────┘
+```
+
+The frontend never talks to MongoDB or Razorpay directly. Everything flows through the Spring Boot API, which is the single source of truth and authority.
 
 ---
 
 ## Backend — How It Works
 
-The backend is a **REST API** — a set of URLs (called endpoints) that the frontend calls to perform actions. It is built with Spring Boot and follows a clean layered architecture.
-
 ### Layered Architecture
 
 ```
 HTTP Request
-      |
-      v
- [ Controller ]   ← Receives the request, validates input, decides who can call it
-      |
-      v
- [ Service ]      ← Applies business logic and rules
-      |
-      v
- [ Repository ]   ← Talks to MongoDB to read and write data
-      |
-      v
- [ MongoDB ]      ← Stores the actual data permanently
+    │
+    ▼
+JwtAuthenticationFilter   ← reads "Authorization: Bearer ..." → identifies user
+    │
+    ▼
+Controller                ← routes URL, validates DTOs, enforces @PreAuthorize roles
+    │
+    ▼
+Service                   ← business logic, state transitions, calls other services
+    │
+    ▼
+Repository (Spring Data)  ← MongoDB CRUD
+    │
+    ▼
+MongoDB
 ```
 
-Each layer has a single responsibility. Controllers never touch the database directly; Services never handle HTTP details. This keeps the code clean, readable, and easy to change.
+### Security Flow
 
----
+1. `POST /api/auth/login` with username/password.
+2. `UserService` checks BCrypt-hashed password.
+3. `JwtUtil` issues a 24-hour signed token (HS256, 256-bit secret from `.env`).
+4. Frontend stores token in `localStorage`.
+5. Every subsequent request includes `Authorization: Bearer <token>`.
+6. `JwtAuthenticationFilter` parses the token, loads the user via `UserDetailsServiceImpl`, and sets the Spring `SecurityContext`.
+7. `@PreAuthorize("hasRole('PATIENT')")` etc. on controllers enforces role checks.
+8. CORS is open to `http://localhost:3000` only.
+9. Stateless — no server-side session.
 
-### Security — How Login Works
+### Key Services
 
-```
-1.  User sends username + password  →  POST /api/auth/login
-2.  Backend checks credentials against the database
-3.  If correct → backend creates a JWT token (a signed string like "eyJhbG...")
-4.  Token is returned to the browser and saved in localStorage
-5.  Every future API call includes:  Authorization: Bearer <token>
-6.  JwtAuthenticationFilter intercepts every request, reads the token,
-    and sets the user's identity automatically
-7.  If token is missing or expired → 401 Unauthorized is returned,
-    and the frontend redirects to the login page
-```
-
-Passwords are **never stored as plain text**. They are hashed using BCrypt before being saved to the database.
-
----
-
-### Data Models
-
-The database has two main collections: `users` and `appointments`.
-
-**User** (base — stored in `users` collection)
-
-| Field | Type | Description |
-|---|---|---|
-| id | String | Unique MongoDB ID |
-| username | String | Unique login name |
-| email | String | Unique email address |
-| password | String | BCrypt hashed password |
-| role | Enum | PATIENT / DOCTOR / ADMIN |
-| createdAt | DateTime | When the account was created |
-
-**Patient** (extends User — same collection, extra fields)
-
-| Field | Type | Description |
-|---|---|---|
-| age | Integer | Patient's age |
-| gender | String | Male / Female / Other |
-| bloodGroup | String | e.g. A+, O-, AB+ |
-| medicalHistory | List | Past conditions or notes |
-
-**Doctor** (extends User — same collection, extra fields)
-
-| Field | Type | Description |
-|---|---|---|
-| specialization | String | e.g. Cardiology, Neurology |
-| experience | Integer | Years of practice |
-| qualification | String | e.g. MBBS, MD |
-| fees | Double | Consultation fee in ₹ |
-| rating | Double | Average rating out of 5.0 |
-| availableSlots | List | Future date-times when available |
-
-**Appointment** (stored in `appointments` collection)
-
-| Field | Type | Description |
-|---|---|---|
-| id | String | Unique MongoDB ID |
-| patientId / patientName | String | Who booked |
-| doctorId / doctorName | String | Who will treat |
-| dateTime | DateTime | Scheduled time |
-| symptoms | String | Patient's description |
-| status | Enum | PENDING / CONFIRMED / COMPLETED / CANCELLED |
-| createdAt | DateTime | When it was booked |
-
----
-
-### Appointment Status Flow
-
-Appointments move through states in one direction only. You cannot undo a completed or cancelled appointment.
-
-```
-         [ PENDING ]
-           /     \
-  Doctor Accepts  Doctor/Patient Cancels or Doctor Rejects
-          /              \
-   [ CONFIRMED ]      [ CANCELLED ]
-      /     \
- Marks Done  Cancels
-    /            \
-[ COMPLETED ]  [ CANCELLED ]
-```
-
----
-
-### Role-Based Access Control
-
-Every endpoint enforces who is allowed to call it:
-
-| Action | Allowed roles |
+| Service | What it does |
 |---|---|
-| Book an appointment | PATIENT only |
-| Accept / reject / complete appointment | DOCTOR only |
-| Update own availability slots | DOCTOR only |
-| View own appointments | PATIENT (sees theirs), DOCTOR (sees theirs) |
-| Update own profile | Any logged-in user |
-| Change own password | Any logged-in user |
-| Look up any user by ID | ADMIN only |
+| `UserService` | Registration (BCrypt hash), profile update, password change, role-aware field handling |
+| `DoctorService` | Doctor search, paginated listing (only approved + active), availability replace |
+| `AppointmentService` | Booking, state-machine transitions (`PENDING_PAYMENT → PENDING → CONFIRMED → COMPLETED`/`CANCELLED`), role validation |
+| `SlotManagementService` | Removes a booked slot from the doctor's `availableSlots`, restores it on cancel |
+| `PaymentService` | Wraps Razorpay SDK: create order, verify signature, mark failed, issue refund. Demo mode (`razorpay.enabled=false`) mocks orders so the full UX runs without a real gateway |
+| `EmailService` | Async HTML emails: booking, confirmation (CC doctor), reminder, cancellation, payment-failed |
+| `ReminderScheduler` | `@Scheduled` cron at 09:00 daily — finds tomorrow's confirmed appointments and queues reminder emails |
+| `PrescriptionService` | Doctor-only create/update for a `COMPLETED` appointment; patient/doctor read |
+| `PdfGenerationService` | OpenPDF — renders prescription as branded A4 PDF (header, doctor info, medication table, footer signature) |
+| `ReviewService` | Patient creates one review per completed appointment; recomputes doctor's running average rating + reviewCount |
+| `CalendarService` | Builds RFC-5545 `.ics` content + Google Calendar deep link + Outlook deep link |
+| `MLServiceClient` | RestTemplate wrapper around the Python ML service. Returns `null` on any error → caller falls back to `SymptomMatcher` |
+| `SymptomMatcher` | Pure-Java fallback chatbot. Keyword + intensity scoring → recommends a specialization |
 
----
+### Configuration (`application.properties` + `.env`)
 
-### Key Backend Files
+```properties
+# Mongo
+spring.data.mongodb.uri=mongodb://localhost:27017/major_project_db
 
-| File | What it does |
-|---|---|
-| `Main.java` | Starts the entire application |
-| `SecurityConfig.java` | Defines public vs protected routes, sets up JWT filter, configures CORS |
-| `JwtUtil.java` | Generates and validates JWT tokens (256-bit secret, 24h expiry) |
-| `JwtAuthenticationFilter.java` | Runs on every request to read the token and identify the caller |
-| `DataInitializer.java` | Seeds 8 sample doctors with fresh appointment slots on every startup |
-| `GlobalExceptionHandler.java` | Catches all errors and returns clean JSON error messages |
-| `AuthController.java` | Handles `/api/auth/register` and `/api/auth/login` |
-| `AppointmentController.java` | All appointment CRUD — book, list, update status, cancel |
-| `DoctorController.java` | Doctor listing, specialization search, availability update |
-| `UserController.java` | Profile view, profile update, password change |
-| `AppointmentService.java` | Validates and enforces appointment business rules and state transitions |
-| `DoctorService.java` | Doctor search, slot management |
-| `UserService.java` | Profile updates, BCrypt password handling, role-specific field updates |
+# JWT
+jwt.secret=${JWT_SECRET}
+jwt.expiration=86400000     # 24h
 
----
+# Mail (Gmail SMTP via .env)
+spring.mail.host=smtp.gmail.com
+spring.mail.username=${MAIL_USERNAME}
+spring.mail.password=${MAIL_PASSWORD}
 
-### Auto-Seeded Sample Doctors
+# Razorpay
+razorpay.enabled=${RAZORPAY_ENABLED:false}
+razorpay.key.id=${RAZORPAY_KEY_ID:}
+razorpay.key.secret=${RAZORPAY_KEY_SECRET:}
 
-On every application startup, `DataInitializer` ensures 8 sample doctors are in the database with fresh appointment slots for the **next 7 days** (4 slots per day at 09:00, 11:00, 14:00, 16:00).
-
-| Username | Specialization | Fees | Rating |
-|---|---|---|---|
-| dr_rajesh | Cardiology | ₹500 | 4.8 |
-| dr_priya | Neurology | ₹600 | 4.7 |
-| dr_amit | Orthopedics | ₹400 | 4.5 |
-| dr_sunita | Cardiology | ₹700 | 4.9 |
-| dr_kumar | Dermatology | ₹350 | 4.3 |
-| dr_meena | Neurology | ₹550 | 4.6 |
-| dr_arjun | Orthopedics | ₹450 | 4.4 |
-| dr_kavitha | Dermatology | ₹300 | 4.2 |
-
-Default password for all sample doctors: **`doctor123`**
-
----
-
-### Swagger / API Documentation
-
-The backend includes interactive API documentation. Once the backend is running, open:
-
-```
-http://localhost:8080/swagger-ui.html
+# ML service
+ml.service.enabled=true
+ml.service.url=http://localhost:5000
 ```
 
-You can browse every endpoint, see the expected request and response formats, and test them directly from the browser without writing any code.
+### Auto-Seeded Data (`DataInitializer`)
+
+On every startup the seeder ensures:
+- An **admin** account (`admin / admin123` — change before deploying)
+- 8 sample **doctors** (specs across Cardiology / Neurology / Orthopedics / Dermatology) all approved and active, password `doctor123`, with **fresh slots for the next 7 days** (4 per day at 09:00, 11:00, 14:00, 16:00).
+
+### Swagger / OpenAPI
+
+`http://localhost:8080/swagger-ui.html` — every endpoint groups, request/response schema, "Try it out" panel, "Authorize" button for JWT.
 
 ---
 
 ## Frontend — How It Works
 
-The frontend is a **React single-page application (SPA)**. This means the browser downloads the app once, and all navigation after that happens without full page reloads — it feels fast and smooth like a native application.
+### Routing (`App.js`)
 
----
+Public: `/login`, `/register`.
+Protected (wrapped by `ProtectedRoute` + `DashboardLayout`):
 
-### Page Structure and Routing
+| Path | Page |
+|---|---|
+| `/dashboard` | Role-aware home (`PatientDashboard` / `DoctorDashboard` / `AdminDashboard`) |
+| `/dashboard/doctors` | Browse doctors |
+| `/dashboard/doctors/:id` | Doctor public profile |
+| `/dashboard/book-appointment/:doctorId` | Booking + payment |
+| `/dashboard/appointments` | Patient: my appointments |
+| `/dashboard/doctor-appointments` | Doctor: my appointments |
+| `/dashboard/availability` | Doctor: manage slots |
+| `/dashboard/chat` | Patient: AI symptom checker |
+| `/dashboard/users` | Admin: users |
+| `/dashboard/statistics` | Admin: stats (also rendered from `/dashboard` for admins) |
+| `/dashboard/doctor-approvals` | Admin: pending doctors |
+| `/dashboard/profile` | Shared profile page |
 
-```
-/login           → Login page (public)
-/register        → Register page (public)
-/dashboard       → Protected (must be logged in)
-  ├── /dashboard                        → Home (Patient or Doctor dashboard based on role)
-  ├── /dashboard/doctors                → Browse and search doctors
-  ├── /dashboard/book-appointment/:id   → Book appointment with a specific doctor
-  ├── /dashboard/appointments           → My Appointments (patient view)
-  ├── /dashboard/doctor-appointments    → Appointments (doctor view)
-  ├── /dashboard/availability           → Manage Schedule (doctor only)
-  └── /dashboard/profile                → Edit Profile (both roles)
-```
+All pages are **lazy-loaded** with `React.lazy` for fast initial paint.
 
-If you try to visit any `/dashboard` page without being logged in, you are automatically redirected to `/login`. This is handled by the `ProtectedRoute` component.
+### Global State — React Context (no Redux)
 
----
-
-### Role-Aware Interface
-
-The same codebase serves both patients and doctors but shows different content:
-
-- **Sidebar navigation** changes based on role — doctors see "Appointments" and "Manage Availability"; patients see "Browse Doctors" and "My Appointments"
-- **Dashboard home** shows different statistics and actions based on role
-- **Appointment cards** show different action buttons — patients see Cancel; doctors see Accept, Reject, Mark Complete, Cancel
-
----
-
-### State Management
-
-The app uses React's built-in **Context API** (no external state library needed):
-
-| Context | What it stores | What it is used for |
+| Context | Stores | Used for |
 |---|---|---|
-| `AuthContext` | Logged-in user info, JWT token | Knowing who you are; protecting routes |
-| `SnackbarContext` | Toast notification queue | Showing success/error pop-up messages across all pages |
+| `AuthContext` | user object + JWT | `isPatient`, `isDoctor`, `isAdmin`, login/logout |
+| `SnackbarContext` | toast queue | `success()`, `error()`, `info()` |
 
----
+### Axios Setup (`services/api.js`)
 
-### How API Calls Work
+- `baseURL: http://localhost:8080/api`
+- **Request interceptor**: attaches `Authorization: Bearer <token>` from `localStorage`.
+- **Response interceptor**: on 401 (and not on the auth endpoints) clears token + hard-redirects to `/login`.
+- Per-domain API objects: `authAPI`, `userAPI`, `doctorAPI`, `appointmentAPI`, `paymentAPI`, `reviewAPI`, `prescriptionAPI`, `calendarAPI`, `notificationAPI`, `chatAPI`, `adminAPI`.
 
-All HTTP calls go through `src/services/api.js` using Axios. Two global interceptors are active:
+### Key Reusable Components
 
-1. **Request interceptor** — automatically attaches `Authorization: Bearer <token>` to every outgoing request. You never manually deal with the token.
-2. **Response interceptor** — if any request gets a 401 Unauthorized response (expired or invalid token), it clears the stored token and immediately redirects to the login page.
-
----
-
-### Key Frontend Files
-
-| File | What it does |
+| Component | Job |
 |---|---|
-| `src/theme.js` | Central MUI color theme — defines primary, secondary, success, warning, error colors used everywhere |
-| `src/App.js` | Main router — maps URLs to page components |
-| `src/index.js` | App entry point — wraps everything in Theme, Auth, and Snackbar providers |
-| `src/services/api.js` | All API calls centralized; JWT interceptors |
-| `src/context/AuthContext.js` | Stores login state; exposes `login`, `logout`, `isPatient`, `isDoctor` |
-| `src/context/SnackbarContext.js` | Global `success()`, `error()`, `info()` toast messages |
-| `src/components/DashboardLayout.js` | App shell — top bar, left sidebar (desktop), bottom navigation (mobile) |
-| `src/components/ProtectedRoute.js` | Redirects unauthenticated users to login |
-| `src/components/AppointmentCard.js` | Role-aware card with action buttons + confirmation dialogs |
-| `src/components/DoctorCard.js` | Doctor info card with Book Appointment button |
-| `src/components/ConfirmDialog.js` | Reusable "Are you sure?" modal with customizable title and button text |
-| `src/components/EmptyState.js` | "Nothing here yet" placeholder shown on empty lists |
-| `src/components/ErrorMessage.js` | Error alert with a Retry button |
-| `src/components/LoadingSpinner.js` | Centered loading indicator with optional message |
-| `src/components/ChangePasswordDialog.js` | Password change modal with current/new/confirm fields and validation |
-| `src/pages/PatientDashboard.js` | Patient home — summary cards and quick action buttons |
-| `src/pages/DoctorDashboard.js` | Doctor home — today's statistics, schedule preview, quick actions |
-| `src/pages/DoctorListPage.js` | Browse doctors — name search with debounce, specialization filter, pagination |
-| `src/pages/BookAppointmentPage.js` | Booking page — slots grouped by day, symptoms form, confirmation card |
-| `src/pages/PatientAppointmentsPage.js` | Tabbed view of Upcoming / Past / Cancelled appointments with cancel action |
-| `src/pages/DoctorAppointmentsPage.js` | Doctor's appointments with filter buttons and today's summary bar |
-| `src/pages/DoctorAvailabilityPage.js` | Add, remove, and save availability time slots |
-| `src/pages/ProfilePage.js` | View and edit profile — different fields shown for patient vs doctor |
+| `DashboardLayout` | Shell — AppBar, Sidebar (desktop) / BottomNav (mobile), notification bell, profile menu |
+| `ProtectedRoute` | `<Outlet/>` guard — redirect to `/login` if no token |
+| `PageTransition` | Fade transition wrapper |
+| `AppointmentCard` | Role-aware action buttons + dialogs (cancel, accept, reject, complete, prescription, rating, calendar) |
+| `DoctorCard` | Doctor list tile + Book button |
+| `PrescriptionDialog` | Doctor's prescription creator (medication rows) |
+| `PrescriptionViewDialog` | Patient's prescription viewer + Download PDF |
+| `RatingDialog` | 5-star review submitter |
+| `NotificationBell` | Polls `/api/notifications` for next-24h confirmed appointments |
+| `ChangePasswordDialog`, `ConfirmDialog`, `EmptyState`, `ErrorMessage`, `LoadingSpinner`, `StatCard` | Standard UX primitives |
+
+### Theme
+
+`theme.js` defines a single MUI palette (blue primary, green success, orange warning, red error) and component overrides for buttons, cards, chips. Every page consumes this — no inline colors.
 
 ---
 
-### Responsive Design
+## The Python ML Microservice
 
-| Screen size | Navigation style |
-|---|---|
-| Desktop (wider than 600px) | Permanent left sidebar with labels and icons |
-| Mobile (600px and below) | Bottom navigation bar (familiar mobile app pattern) |
+A small Flask app that powers the **AI Symptom Checker** in the patient chat. It runs separately on `localhost:5000` and is called by Spring Boot's `MLServiceClient`.
 
----
+### What it does
 
-## All Features Built
+1. **Conversation manager** — multi-turn dialog state machine: symptom → severity → duration → additional → recommendation.
+2. **Two scikit-learn pipelines** (TF-IDF char + word features → RandomForest):
+   - `trained_specialization_model.pkl` — predicts which doctor specialization fits the symptom text.
+   - `trained_severity_model.pkl` — classifies severity (mild / moderate / severe).
+3. **Vocabulary coverage check** — if the patient's words don't match any known medical vocabulary, the bot asks for clarification instead of guessing.
+4. **Red-flag detection** — flags chest pain, breathing problems, suicidal ideation, etc., and recommends emergency care.
 
-### Authentication
-- [x] Register as Patient or Doctor with username, email, and password
-- [x] Login with JWT token issued on success
-- [x] Token stored in browser localStorage and attached to all requests
-- [x] All dashboard routes protected — unauthenticated users redirected to login
-- [x] Automatic logout on token expiry (401 response globally handled)
-- [x] Logout with confirmation dialog
+### Endpoints
 
-### Patient Features
-- [x] Patient Dashboard with summary cards (upcoming appointments count, available doctors, profile status)
-- [x] Browse all doctors with name search (debounced 400ms) and specialization filter
-- [x] Paginated doctor list (9 per page)
-- [x] View doctor details — specialization, experience, qualification, rating, consultation fees
-- [x] Book appointment — visual day-grouped time slot picker; click a slot to prefill date and time
-- [x] Describe symptoms before booking
-- [x] View all appointments — tabbed layout for Upcoming / Past / Cancelled
-- [x] Cancel a pending or confirmed appointment (confirmation dialog before cancelling)
-- [x] Appointment list auto-refreshes every 30 seconds
-- [x] Appointment status shown with color-coded badges
-- [x] Edit health profile — age, gender, blood group, medical history (multi-line)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | health check |
+| POST | `/chat/start` | new welcome message + reset state |
+| POST | `/chat/message` | next prompt or final recommendation |
+| POST | `/chat/reset/<sessionId>` | clear server-side state |
+| POST | `/predict` | one-shot classification |
 
-### Doctor Features
-- [x] Doctor Dashboard showing today's appointment count, pending requests, confirmed count
-- [x] Quick view of today's schedule directly on dashboard
-- [x] View all appointments with filter buttons — All / Pending / Confirmed / Completed
-- [x] Accept pending appointment requests
-- [x] Reject pending requests (confirmation dialog)
-- [x] Mark confirmed appointments as completed
-- [x] Cancel confirmed appointments (confirmation dialog)
-- [x] Manage availability — add date+time slots visually, remove unwanted ones, save to backend
-- [x] Edit professional profile — specialization, experience, qualification, fees
+### Java side — graceful degradation
 
-### Profile Management (Both Roles)
-- [x] View full profile with role badge and join date
-- [x] Toggle between view and edit mode
-- [x] Save changes with success/error feedback
-- [x] Change password — validates current password, minimum 6 characters, confirmation must match
-
-### UI / UX Polish
-- [x] Consistent color theme applied globally (blue primary, green success, orange warning, red error)
-- [x] Loading spinner with message on every data fetch
-- [x] Error alerts with Retry button on every API call failure
-- [x] Empty state illustrations on every list/table page
-- [x] Toast notifications for all actions — booking, cancelling, saving profile, changing password
-- [x] Confirmation dialogs before all destructive actions (cancel appointment, reject, logout)
-- [x] Mobile-responsive — bottom navigation bar on small screens
-- [x] Hover animations on all cards
-- [x] Round card corners and consistent spacing across all pages
+`MLServiceClient` swallows network errors and returns `null`. The `ChatController` then switches to `SymptomMatcher` (pure-Java keyword scorer) for that session. **The chatbot never goes fully offline** — that's a deliberate design choice for the demo.
 
 ---
 
-## API Reference
+## Major Workflows Explained Step-by-Step
 
-All endpoints require the header `Authorization: Bearer <token>` unless marked **Public**.
+### 1. Booking + Payment
 
-### Auth
+```
+Patient picks slot + symptoms  →  POST /api/appointments
+   ↳ Service creates Appointment with status = PENDING_PAYMENT
+   ↳ Slot is removed from doctor.availableSlots so nobody else can take it
+   ↳ EmailService.sendAppointmentBooked (async)
 
-| Method | Endpoint | Access | Description |
+Frontend  →  POST /api/payments/create-order  { appointmentId }
+   ↳ PaymentService calls Razorpay.orders.create(amount, currency)
+   ↳ Persists Payment(status=CREATED, razorpayOrderId)
+   ↳ Returns { orderId, key, amount } to frontend
+
+Frontend opens Razorpay Checkout (popup)
+   ↳ User pays
+   ↳ Razorpay returns { razorpayOrderId, razorpayPaymentId, razorpaySignature }
+
+Frontend  →  POST /api/payments/verify
+   ↳ PaymentService.verifyPayment uses HMAC-SHA256 to verify the signature
+   ↳ On success: Payment.status = PAID, Appointment.status = PENDING (awaiting doctor)
+   ↳ EmailService.sendAppointmentConfirmation (async, CC doctor)
+
+Failure path  →  POST /api/payments/failed
+   ↳ Payment.status = FAILED, slot is released, patient emailed.
+```
+
+### 2. Doctor Lifecycle
+
+```
+Doctor signs up (POST /api/auth/register, role=DOCTOR)
+   ↳ User saved with approved=false, active=true
+   ↳ Cannot be discovered in /api/doctors yet (filtered out)
+   ↳ Doctor sees a banner: "Pending admin approval"
+
+Admin opens /dashboard/doctor-approvals
+   ↳ GET  /api/admin/doctors/pending
+   ↳ Clicks Approve  →  PUT /api/admin/doctors/{id}/approve
+   ↳ Doctor.approved = true → now visible to patients
+```
+
+### 3. Appointment State Machine
+
+```
+                 (book + pay)
+    [ PENDING_PAYMENT ]──────► [ PENDING ]──── doctor accepts ──► [ CONFIRMED ]
+            │                       │                                  │
+       payment fails           doctor rejects                    doctor marks done
+            ▼                       ▼                                  ▼
+       [ CANCELLED ]            [ CANCELLED ]                      [ COMPLETED ]
+                                                                       │
+                                                              prescription / review
+```
+
+Slot is auto-released back to the doctor's `availableSlots` on any `CANCELLED` transition. Patient → review allowed only after `COMPLETED`.
+
+### 4. AI Symptom Checker
+
+```
+Patient clicks "Start chat"  →  POST /api/chat/start
+   ↳ ChatController creates ChatSession (Mongo)
+   ↳ Calls Python /chat/start with that session id
+   ↳ Returns welcome message
+
+Patient types symptom  →  POST /api/chat/message  { sessionId, message }
+   ↳ Python ML pipeline:
+        preprocess → predict_specialization → predict_severity → red-flag check
+   ↳ Returns either next question or final recommendation + isComplete=true
+   ↳ Java looks up doctors by predicted specialization → returns 4 cards inline
+
+Python down?  →  Java falls back to SymptomMatcher (keyword/intensity rules)
+```
+
+### 5. Prescription + PDF
+
+```
+Doctor clicks "Issue Prescription" on a COMPLETED appointment
+   ↳ PrescriptionDialog: list of medication rows + notes
+   ↳ POST /api/prescriptions  { appointmentId, medications[], notes }
+   ↳ Stored in `prescriptions` collection
+
+Patient opens appointment  →  GET /api/prescriptions/appointment/{id}
+   ↳ Sees medications + Download PDF button
+   ↳ GET /api/prescriptions/{id}/pdf
+        → PdfGenerationService renders A4 PDF with OpenPDF (header, table, signature)
+```
+
+### 6. Calendar Integration
+
+After confirmation, patient sees three options on the appointment card:
+- **Add to Google Calendar** → `GET /api/appointments/{id}/calendar/links` → opens Google Calendar URL with title/time/description prefilled.
+- **Add to Outlook** → same idea, Outlook URL.
+- **Download .ics** → `GET /api/appointments/{id}/calendar/ics` returns RFC-5545 file the OS opens with the default calendar app.
+
+### 7. Reminders
+
+`ReminderScheduler` runs at **09:00 every day** via Spring's `@Scheduled` cron:
+1. Finds all `CONFIRMED` appointments scheduled in the next ~24h that don't yet have a `24H_BEFORE` reminder.
+2. Persists a `Reminder` row to avoid duplicates across restarts.
+3. Calls `EmailService.sendAppointmentReminder` (async).
+
+### 8. Admin Analytics
+
+`GET /api/admin/stats?days=7` aggregates everything in one call:
+- User counts by role
+- Appointments by status + per-day series
+- Top 5 specializations + top 5 doctors by volume
+- **Real revenue** from PAID/REFUNDED `Payment` rows (not faked from completed × fees)
+- Payment KPIs: success rate, average ticket, daily revenue trend
+- Platform avg rating, top-rated doctors, recent reviews
+- Cancellation rate, prescription count, pending doctor approvals
+
+---
+
+## API Reference (every endpoint)
+
+> All endpoints require `Authorization: Bearer <jwt>` unless marked **Public**.
+
+### Auth — `/api/auth`
+| Method | Path | Role | Purpose |
 |---|---|---|---|
-| POST | `/api/auth/register` | Public | Create a new account (PATIENT or DOCTOR) |
-| POST | `/api/auth/login` | Public | Login and receive a JWT token |
+| POST | `/register` | Public | Create patient or doctor account |
+| POST | `/login` | Public | Get JWT |
 
-### Users
-
-| Method | Endpoint | Access | Description |
+### Users — `/api/users`
+| Method | Path | Role | Purpose |
 |---|---|---|---|
-| GET | `/api/users/profile` | Any | Get own full profile (includes role-specific fields) |
-| PUT | `/api/users/profile` | Any | Update own profile |
-| PUT | `/api/users/password` | Any | Change password (requires current password) |
-| GET | `/api/users/{id}` | Admin only | Look up any user by MongoDB ID |
+| GET | `/profile` | Any | Own profile |
+| PUT | `/profile` | Any | Update own profile |
+| PUT | `/password` | Any | Change password |
+| GET | `/{id}` | Admin | Look up any user |
 
-### Doctors
-
-| Method | Endpoint | Access | Description |
+### Doctors — `/api/doctors`
+| Method | Path | Role | Purpose |
 |---|---|---|---|
-| GET | `/api/doctors?page=0&size=9` | Any | List all doctors (paginated, sorted by rating) |
-| GET | `/api/doctors/{id}` | Any | Get one doctor's full details |
-| GET | `/api/doctors/search?specialization=Cardiology` | Any | Filter by specialization |
-| GET | `/api/doctors/available` | Any | Only doctors with at least one open slot |
-| PUT | `/api/doctors/availability` | Doctor only | Replace own list of available slots |
+| GET | `?page=&size=` | Any | Paginated approved doctors |
+| GET | `/{id}` | Any | Doctor details |
+| GET | `/search?specialization=` | Any | Filter by spec |
+| GET | `/available` | Any | Doctors with at least one slot |
+| PUT | `/availability` | Doctor | Replace own slot list |
 
-### Appointments
-
-| Method | Endpoint | Access | Description |
+### Appointments — `/api/appointments`
+| Method | Path | Role | Purpose |
 |---|---|---|---|
-| POST | `/api/appointments` | Patient only | Book a new appointment |
-| GET | `/api/appointments` | Any | Get own appointments (filtered by role automatically) |
-| GET | `/api/appointments/{id}` | Owner | Get a single appointment |
-| PUT | `/api/appointments/{id}/status` | Doctor / Admin | Change status (CONFIRMED / COMPLETED / CANCELLED) |
-| DELETE | `/api/appointments/{id}` | Owner | Cancel appointment (sets status to CANCELLED) |
+| POST | `` | Patient | Book (status = PENDING_PAYMENT) |
+| GET | `` | Any | My appointments (filtered by role) |
+| GET | `/{id}` | Owner | Single appointment |
+| PUT | `/{id}/status` | Doctor / Admin | CONFIRMED / COMPLETED / CANCELLED |
+| DELETE | `/{id}` | Owner | Cancel (releases slot) |
+| GET | `/{id}/calendar/links` | Owner | Google + Outlook URLs |
+| GET | `/{id}/calendar/ics` | Owner | Download .ics |
+| GET | `/{id}/calendar/google` | Owner | 302 to Google Calendar |
+| GET | `/{id}/calendar/outlook` | Owner | 302 to Outlook |
+
+### Payments — `/api/payments`
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `/create-order` | Patient | Razorpay order |
+| POST | `/verify` | Patient | Verify signature, mark PAID |
+| POST | `/failed` | Patient | Record failure + email |
+| GET | `/history` | Patient | Own payment history |
+
+### Prescriptions — `/api/prescriptions`
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `` | Doctor | Create / update for an appointment |
+| GET | `/appointment/{id}` | Patient/Doctor | By appointment |
+| GET | `/mine` | Patient | All my prescriptions |
+| GET | `/{id}/pdf` | Patient/Doctor | Download branded PDF |
+
+### Reviews — `/api/reviews`
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `` | Patient | Submit 1-5 stars + comment |
+| GET | `/doctor/{id}?page=&size=` | Any | Paginated doctor reviews |
+| GET | `/appointment/{id}` | Any | Existing review for an appointment |
+
+### Chat / Symptom Checker — `/api/chat`
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `/start` | Patient | New session + welcome |
+| POST | `/message` | Patient | Send message → bot reply (+ doctor cards when done) |
+| GET | `/history` | Patient | All my chat sessions |
+
+### Notifications — `/api/notifications`
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET | `` | Any | Confirmed appointments in next 24h (drives bell) |
+
+### Admin — `/api/admin`  *(role = ADMIN)*
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/stats?days=` | Dashboard KPIs + charts |
+| GET | `/appointments/trends` | 30-day appointment series |
+| GET | `/doctors/performance?page=&size=` | Per-doctor metrics |
+| GET | `/users?page=&size=&role=&search=` | List users |
+| PUT | `/users/{id}/status` | Activate / deactivate |
+| DELETE | `/users/{id}` | Delete user |
+| GET | `/activity?limit=` | Live cross-module event feed |
+| GET | `/health` | Mongo / Mailer / ML / Razorpay status |
+| GET | `/export/{users\|appointments\|payments\|reviews}` | CSV download |
+| GET | `/doctors/pending` | Pending doctor signups |
+| PUT | `/doctors/{id}/approve` | Approve |
+| PUT | `/doctors/{id}/reject` | Reject (sets approved=false, active=false) |
+
+---
+
+## Data Models
+
+> All models live in MongoDB. `User`, `Patient`, `Doctor` share the **`users`** collection (single-table inheritance via Spring's discriminator).
+
+### User (base)
+`id, username, email, password (BCrypt), role (PATIENT/DOCTOR/ADMIN), active, createdAt`
+
+### Patient extends User
+`age, gender, bloodGroup, medicalHistory[]`
+
+### Doctor extends User
+`specialization, experience, qualification, fees, bio, rating, reviewCount, availableSlots[LocalDateTime], approved`
+
+### Appointment (`appointments`)
+`id, patientId, doctorId, dateTime, symptoms, status, fee, paymentId, createdAt`
+Status enum: `PENDING_PAYMENT, PENDING, CONFIRMED, COMPLETED, CANCELLED`
+
+### Payment (`payments`)
+`id, appointmentId, patientId, razorpayOrderId, razorpayPaymentId, amount, currency, status, createdAt, paidAt, refundedAt`
+Status: `CREATED, PAID, FAILED, REFUNDED`
+
+### Prescription (`prescriptions`)
+`id, appointmentId, patientId, doctorId, medications[Medication], notes, createdAt, updatedAt`
+**Medication**: `name, dosage, frequency, duration`
+
+### Review (`reviews`)
+`id, appointmentId, patientId, doctorId, rating (1-5), comment, createdAt`
+
+### ChatSession (`chatSessions`)
+`id, patientId, messages[Message], detectedSymptoms[], recommendedSpecialization, awaitingIntensity, pendingKeywords[], useMlService, active, timestamp`
+
+### Reminder (`reminders`)
+`id, appointmentId, userId, reminderType, sentAt`
 
 ---
 
@@ -456,83 +599,57 @@ All endpoints require the header `Authorization: Bearer <token>` unless marked *
 
 ```
 Major_Project/
-│
 ├── src/main/java/org/example/
 │   ├── Main.java
-│   ├── config/
-│   │   ├── DataInitializer.java         ← Seeds 8 doctors with fresh slots on every startup
-│   │   ├── MongoConfig.java             ← LocalDateTime serialization for MongoDB
-│   │   ├── SecurityConfig.java          ← JWT filter chain, CORS settings, public routes
-│   │   └── SwaggerConfig.java           ← OpenAPI / Swagger UI configuration
-│   ├── controller/
-│   │   ├── AuthController.java          ← /api/auth/register and /api/auth/login
-│   │   ├── AppointmentController.java   ← /api/appointments/*
-│   │   ├── DoctorController.java        ← /api/doctors/*
-│   │   └── UserController.java          ← /api/users/*
-│   ├── service/
-│   │   ├── AppointmentService.java      ← State machine rules, role validation
-│   │   ├── DoctorService.java           ← Search, slot management
-│   │   └── UserService.java             ← Registration, profile, password
-│   ├── model/
-│   │   ├── User.java                    ← Base user (username, email, password, role)
-│   │   ├── Patient.java                 ← Extends User (age, gender, bloodGroup, history)
-│   │   ├── Doctor.java                  ← Extends User (specialization, slots, fees, rating)
-│   │   ├── Appointment.java             ← Appointment document
-│   │   ├── AppointmentStatus.java       ← Enum: PENDING, CONFIRMED, COMPLETED, CANCELLED
-│   │   └── Role.java                    ← Enum: PATIENT, DOCTOR, ADMIN
-│   ├── dto/                             ← Request/Response objects (never expose raw models)
-│   │   ├── AuthRequest / AuthResponse / RegisterRequest
-│   │   ├── AppointmentRequest / AppointmentResponse / StatusUpdateRequest
-│   │   ├── DoctorResponse / AvailabilityUpdateRequest / PageResponse
-│   │   ├── ProfileUpdateRequest / UserProfileResponse / ChangePasswordRequest
-│   ├── repository/                      ← Spring Data MongoDB interfaces
-│   │   ├── UserRepository / DoctorRepository / PatientRepository
-│   │   ├── AppointmentRepository
-│   ├── security/
-│   │   ├── JwtUtil.java                 ← Token generation and validation
-│   │   ├── JwtAuthenticationFilter.java ← Reads token from every request header
-│   │   └── UserDetailsServiceImpl.java  ← Loads user from DB for Spring Security
-│   └── exception/
-│       ├── AppException.java            ← Custom exception class
-│       └── GlobalExceptionHandler.java  ← Converts exceptions to clean JSON responses
+│   ├── config/         DataInitializer, SecurityConfig, MongoConfig, SwaggerConfig
+│   ├── controller/     Auth, User, Doctor, Appointment, Payment, Prescription,
+│   │                   Review, Chat, Notification, Calendar, Admin
+│   ├── service/        UserService, DoctorService, AppointmentService,
+│   │                   SlotManagementService, PaymentService, EmailService,
+│   │                   ReminderScheduler, PrescriptionService, PdfGenerationService,
+│   │                   ReviewService, CalendarService, MLServiceClient, SymptomMatcher
+│   ├── model/          User, Patient, Doctor, Appointment, AppointmentStatus,
+│   │                   Payment, PaymentStatus, Prescription, Medication, Review,
+│   │                   ChatSession, Message, Reminder, Role
+│   ├── dto/            All request/response DTOs (never expose raw entities)
+│   ├── repository/     UserRepo, DoctorRepo, PatientRepo, AppointmentRepo,
+│   │                   PaymentRepo, PrescriptionRepo, ReviewRepo,
+│   │                   ChatSessionRepo, ReminderRepo
+│   ├── security/       JwtUtil, JwtAuthenticationFilter, UserDetailsServiceImpl
+│   └── exception/      AppException, GlobalExceptionHandler
 │
-├── src/main/resources/
-│   └── application.properties           ← Port 8080, MongoDB config, JWT secret, Swagger paths
+├── src/main/resources/application.properties
 │
 ├── frontend/
-│   ├── public/
 │   └── src/
-│       ├── index.js                     ← Wraps app in ThemeProvider + AuthProvider + SnackbarProvider
-│       ├── App.js                       ← Defines all routes
-│       ├── theme.js                     ← MUI color palette and component overrides
-│       ├── context/
-│       │   ├── AuthContext.js           ← Login state, JWT storage, role helpers
-│       │   └── SnackbarContext.js       ← Global toast notification system
-│       ├── services/
-│       │   └── api.js                   ← All Axios API calls; JWT interceptors
-│       ├── components/
-│       │   ├── DashboardLayout.js       ← AppBar + Sidebar (desktop) / BottomNav (mobile)
-│       │   ├── ProtectedRoute.js        ← Auth guard using React Router Outlet
-│       │   ├── AppointmentCard.js       ← Role-aware appointment card with action buttons
-│       │   ├── DoctorCard.js            ← Doctor info + Book Appointment button
-│       │   ├── ConfirmDialog.js         ← Reusable confirmation dialog
-│       │   ├── EmptyState.js            ← Empty list placeholder with optional action
-│       │   ├── ErrorMessage.js          ← Error alert with Retry button
-│       │   ├── LoadingSpinner.js        ← Centered loading indicator
-│       │   └── ChangePasswordDialog.js  ← Modal for changing password
-│       └── pages/
-│           ├── LoginPage.js / RegisterPage.js
-│           ├── PatientDashboard.js / DoctorDashboard.js
-│           ├── DoctorListPage.js        ← Search + filter + pagination
-│           ├── BookAppointmentPage.js   ← Day-grouped slot picker + booking form
-│           ├── PatientAppointmentsPage.js  ← Tabbed appointments + cancel
-│           ├── DoctorAppointmentsPage.js   ← Filter + status management
-│           ├── DoctorAvailabilityPage.js   ← Add/remove/save time slots
-│           └── ProfilePage.js           ← View and edit profile (role-aware fields)
+│       ├── App.js, index.js, theme.js
+│       ├── context/    AuthContext, SnackbarContext
+│       ├── services/   api.js (all axios calls)
+│       ├── components/ DashboardLayout, ProtectedRoute, PageTransition,
+│       │               AppointmentCard, DoctorCard, PrescriptionDialog,
+│       │               PrescriptionViewDialog, RatingDialog, NotificationBell,
+│       │               StatCard, ChangePasswordDialog, ConfirmDialog,
+│       │               EmptyState, ErrorMessage, LoadingSpinner
+│       └── pages/      LoginPage, RegisterPage, PatientDashboard, DoctorDashboard,
+│                       AdminDashboard, DoctorListPage, DoctorProfilePage,
+│                       BookAppointmentPage, PatientAppointmentsPage,
+│                       DoctorAppointmentsPage, DoctorAvailabilityPage,
+│                       UserManagementPage, DoctorApprovalsPage, ChatPage,
+│                       ProfilePage, DashboardPage
 │
-├── pom.xml                              ← Maven backend dependencies
-├── e2e/full_test.js                     ← Playwright end-to-end test suite (153 checks)
-└── README.md                            ← This file
+├── healthcare-ml-service/
+│   ├── app.py                                  Flask API
+│   ├── models/conversation_manager.py          Multi-turn FSM
+│   ├── models/severity_analyzer.py             Rule-based severity + red-flag
+│   ├── training/train_model.py                 Builds TF-IDF + RandomForest pipelines
+│   ├── training/medical_data.csv               250+ labelled rows
+│   ├── training/trained_specialization_model.pkl
+│   └── training/trained_severity_model.pkl
+│
+├── e2e/full_test.js                            Playwright E2E suite
+├── postman_collection.json                     API requests for manual testing
+├── pom.xml
+└── README.md                                   ← this file
 ```
 
 ---
@@ -540,106 +657,74 @@ Major_Project/
 ## Running the Project
 
 ### Prerequisites
+- Java 17+, Maven 3.x
+- MongoDB on `localhost:27017`
+- Node.js 18+
+- Python 3.10+ (only for ML service)
 
-- Java 17 or higher
-- Maven 3.x
-- MongoDB running on `localhost:27017`
-- Node.js 18+ and npm
-
-### Step 1 — Start MongoDB
-
-Make sure MongoDB is running locally. The database `major_project_db` is created automatically.
-
+### 1 — MongoDB
 ```bash
-# Using mongod directly
 mongod --dbpath /data/db
-
-# Or with Docker
-docker run -d -p 27017:27017 --name mongo mongo:latest
+# or:  docker run -d -p 27017:27017 --name mongo mongo:latest
 ```
 
-### Step 2 — Start the Backend
-
+### 2 — Backend
+Create `.env` at project root (used by `spring-dotenv`):
+```env
+JWT_SECRET=<256-bit random string>
+MAIL_USERNAME=youraddress@gmail.com
+MAIL_PASSWORD=<gmail app password>
+RAZORPAY_ENABLED=false
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+```
+Then:
 ```bash
-cd Major_Project
 mvn spring-boot:run
+# → http://localhost:8080  (Swagger: /swagger-ui.html)
 ```
+Seeds 1 admin + 8 doctors with fresh slots automatically.
 
-The backend starts at **http://localhost:8080**
-
-On first startup, 8 sample doctors are automatically created with appointment slots for the next 7 days. No manual setup required.
-
-### Step 3 — Start the Frontend
-
+### 3 — Frontend
 ```bash
 cd frontend
 npm install
 npm start
+# → http://localhost:3000
 ```
 
-The frontend opens at **http://localhost:3000**
+### 4 — ML Service (optional)
+```bash
+cd healthcare-ml-service
+pip install -r requirements.txt
+python training/train_model.py     # builds .pkl files
+python app.py                      # → http://localhost:5000
+```
+If skipped, the chat falls back to the rule-based Java matcher.
 
-### Quick Start Accounts
-
+### Quick-start accounts
 | Role | Username | Password |
 |---|---|---|
+| Admin | admin | admin123 |
 | Doctor | dr_rajesh | doctor123 |
-| Doctor | dr_sunita | doctor123 |
 | Doctor | dr_priya | doctor123 |
-| Patient | Register a new account via `/register` | — |
-
-> Patient accounts must be created through the Register page. Doctors are seeded automatically on startup.
-
-### Swagger API Docs
-
-```
-http://localhost:8080/swagger-ui.html
-```
+| Patient | (register from `/register`) | — |
 
 ---
 
-## What Can Be Added Next
+## Talking Points for the Presentation
 
-### High Priority
+A short cheat-sheet — pick what fits the moment.
 
-| Feature | Description |
-|---|---|
-| Real-time notifications | Notify a patient instantly when their appointment is confirmed or rejected (WebSocket) |
-| Email notifications | Send confirmation emails on booking, acceptance, and cancellation |
-| Backend name search | Add `?name=` parameter to `/api/doctors` for server-side name filtering |
-| Doctor ratings | Allow patients to rate a doctor after a completed appointment |
-| Appointment notes | Doctor can add post-appointment notes or prescription visible to the patient |
-
-### Medium Priority
-
-| Feature | Description |
-|---|---|
-| Admin dashboard | Separate panel for viewing all users, appointments, and system statistics |
-| Forgot password | Password reset flow via email link |
-| Appointment reminders | Notification 1 hour before scheduled appointment |
-| Medical records | Patients can attach files or documents to an appointment |
-| Doctor profile photo | Upload and display a profile picture |
-| Multi-specialization filter | Filter doctors by more than one specialization at once |
-
-### Future / Advanced
-
-| Feature | Description |
-|---|---|
-| Video consultation | WebRTC integration for virtual appointments |
-| Payment integration | Collect consultation fees online before confirming (Razorpay / Stripe) |
-| AI symptom checker | Chatbot to help patients describe symptoms before booking |
-| Calendar sync | Export appointments to Google Calendar or iCal |
-| Multi-language support | Hindi, Tamil, Telugu interface options |
-| PWA (Progressive Web App) | Make the app installable on mobile like a native app |
-| Analytics dashboard | Charts showing appointment trends, popular specializations, doctor utilization |
-| Prescription management | Doctors can generate and patients can download prescriptions as PDF |
-
----
-
-## Security Notes
-
-- Passwords are hashed with **BCrypt** before storage — the plain text is never saved.
-- JWT tokens expire after **24 hours** (configurable via `jwt.expiration` in `application.properties`).
-- All routes under `/api/auth/**` are public. Everything else requires a valid token.
-- Sessions are **stateless** — no server-side session is created or stored.
-- Replace the `jwt.secret` in `application.properties` with a strong randomly-generated secret before any non-local deployment.
+1. **"Three roles, one codebase"** — the same React app and the same Spring Boot API serve patients, doctors, and admins. Role is encoded in the JWT and enforced at the controller layer with `@PreAuthorize`.
+2. **"Stateless JWT auth"** — no server session; every request carries its own identity. Token expires in 24h, BCrypt-hashed passwords.
+3. **"Real payment integration"** — Razorpay orders, server-side HMAC-SHA256 signature verification, refunds on cancellation, demo-mode toggle so I can show the full UX without a real Razorpay key.
+4. **"Real ML"** — Python Flask microservice with two scikit-learn pipelines (TF-IDF + RandomForest) for specialization and severity. Java falls back to a rule-based matcher if Python is offline — chat never breaks.
+5. **"Async + Scheduled"** — emails sent via `@Async`, daily reminder cron via `@Scheduled` at 09:00.
+6. **"Clean state machine"** — five appointment states with one-way transitions; slots auto-released on cancel.
+7. **"Admin observability"** — `/api/admin/stats` returns charts + payment KPIs + activity feed in one call; system-health endpoint reports Mongo/Mailer/ML/Razorpay status.
+8. **"PDF generation in-process"** — OpenPDF renders branded prescription PDFs without an external service.
+9. **"Calendar interop"** — RFC-5545 `.ics`, Google Calendar URL, Outlook deep link.
+10. **"Lazy-loaded SPA"** — every page is a `React.lazy` import; first paint stays fast as the app grew.
+11. **"Doctor approval gate"** — new doctor signups are invisible to patients until an admin approves them.
+12. **"Graceful degradation everywhere"** — payment demo mode, ML fallback, mail-skip when SMTP not configured. The app runs end-to-end on a fresh laptop with zero external accounts.

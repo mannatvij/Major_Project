@@ -21,7 +21,7 @@ const SPEC_COLOR = {
 
 export default function DoctorCard({ doctor }) {
   const navigate = useNavigate();
-  const { id, name, specialization, experience, rating, fees, qualification } = doctor;
+  const { id, name, specialization, experience, rating, reviewCount, fees, qualification } = doctor;
   const color   = SPEC_COLOR[specialization] ?? '#37474f';
   const initial = (name?.[0] ?? 'D').toUpperCase();
 
@@ -114,7 +114,12 @@ export default function DoctorCard({ doctor }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <StarIcon sx={{ fontSize: 16, color: '#f9a825', flexShrink: 0 }} />
             <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1 }}>
-              {rating} / 5
+              {rating ? rating.toFixed(1) : '—'} / 5
+              {reviewCount > 0 && (
+                <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>
+                  ({reviewCount})
+                </Typography>
+              )}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -126,25 +131,27 @@ export default function DoctorCard({ doctor }) {
         </Box>
       </Box>
 
-      {/* ── BUTTON (pinned to bottom) ── */}
-      <Box sx={{
-        px: 2,
-        pb: 2,
-        pt: 0,
-        flexShrink: 0,
-      }}>
+      {/* ── BUTTONS (pinned to bottom) ── */}
+      <Box sx={{ px: 2, pb: 2, pt: 0, flexShrink: 0, display: 'flex', gap: 1 }}>
+        <Button
+          variant="outlined"
+          onClick={() => navigate(`/dashboard/doctors/${id}`)}
+          sx={{ fontWeight: 600, height: 36, color, borderColor: color, flex: 1 }}
+        >
+          View profile
+        </Button>
         <Button
           variant="contained"
-          fullWidth
           onClick={() => navigate(`/dashboard/book-appointment/${id}`)}
           sx={{
             fontWeight: 600,
             bgcolor: color,
             height: 36,
+            flex: 1,
             '&:hover': { bgcolor: color, filter: 'brightness(0.88)' },
           }}
         >
-          Book Appointment
+          Book
         </Button>
       </Box>
     </Card>

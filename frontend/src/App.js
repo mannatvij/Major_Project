@@ -12,8 +12,10 @@ const RegisterPage            = React.lazy(() => import('./pages/RegisterPage'))
 const PatientDashboard        = React.lazy(() => import('./pages/PatientDashboard'));
 const DoctorDashboard         = React.lazy(() => import('./pages/DoctorDashboard'));
 const AdminDashboard          = React.lazy(() => import('./pages/AdminDashboard'));
+const DoctorApprovalsPage     = React.lazy(() => import('./pages/DoctorApprovalsPage'));
 const UserManagementPage      = React.lazy(() => import('./pages/UserManagementPage'));
 const DoctorListPage          = React.lazy(() => import('./pages/DoctorListPage'));
+const DoctorProfilePage       = React.lazy(() => import('./pages/DoctorProfilePage'));
 const BookAppointmentPage     = React.lazy(() => import('./pages/BookAppointmentPage'));
 const PatientAppointmentsPage = React.lazy(() => import('./pages/PatientAppointmentsPage'));
 const DoctorAppointmentsPage  = React.lazy(() => import('./pages/DoctorAppointmentsPage'));
@@ -65,8 +67,10 @@ function App() {
             {/* Admin routes */}
             <Route path="/dashboard/users"                       element={<WithLayout Page={UserManagementPage} />} />
             <Route path="/dashboard/statistics"                  element={<WithLayout Page={AdminDashboard} />} />
+            <Route path="/dashboard/doctor-approvals"            element={<WithLayout Page={DoctorApprovalsPage} />} />
             {/* Patient routes */}
             <Route path="/dashboard/doctors"                     element={<WithLayout Page={DoctorListPage} />} />
+            <Route path="/dashboard/doctors/:id"                 element={<WithLayout Page={DoctorProfilePage} />} />
             <Route path="/dashboard/book-appointment/:doctorId"  element={<WithLayout Page={BookAppointmentPage} />} />
             <Route path="/dashboard/appointments"                element={<WithLayout Page={PatientAppointmentsPage} />} />
             {/* Doctor routes */}

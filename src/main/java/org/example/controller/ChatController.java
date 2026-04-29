@@ -217,7 +217,8 @@ public class ChatController {
         return new DoctorResponse(
                 d.getId(), d.getUsername(), d.getEmail(),
                 d.getSpecialization(), d.getExperience(),
-                d.getRating(), d.getAvailableSlots(), d.getFees(),
+                d.getRating(), d.getReviewCount(),
+                d.getAvailableSlots(), d.getFees(),
                 d.getQualification(), d.getBio());
     }
 }

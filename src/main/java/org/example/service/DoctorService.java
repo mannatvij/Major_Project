@@ -26,7 +26,8 @@ public class DoctorService {
      */
     public PageResponse<DoctorResponse> getAllDoctors(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "rating"));
-        return PageResponse.from(doctorRepository.findByRole(Role.DOCTOR, pageable).map(this::toResponse));
+        return PageResponse.from(
+                doctorRepository.findApprovedByRole(Role.DOCTOR, pageable).map(this::toResponse));
     }
 
     public DoctorResponse getDoctorById(String id) {
@@ -39,7 +40,7 @@ public class DoctorService {
     public PageResponse<DoctorResponse> searchBySpecialization(String specialization, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "rating"));
         return PageResponse.from(
-                doctorRepository.findBySpecializationIgnoreCaseAndRole(specialization, Role.DOCTOR, pageable)
+                doctorRepository.findApprovedBySpecializationAndRole(specialization, Role.DOCTOR, pageable)
                         .map(this::toResponse)
         );
     }
@@ -62,6 +63,25 @@ public class DoctorService {
         return toResponse(doctorRepository.save(doctor));
     }
 
+    /**
+     * Recomputes a doctor's rating average and reviewCount from the reviews collection.
+     * Called by ReviewService after each save. Idempotent and cheap (one query + one save).
+     */
+    public void recalculateRating(String doctorId, java.util.List<Integer> allRatings) {
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() -> new RuntimeException("Doctor not found: " + doctorId));
+        if (allRatings == null || allRatings.isEmpty()) {
+            doctor.setRating(0.0);
+            doctor.setReviewCount(0);
+        } else {
+            double avg = allRatings.stream().mapToInt(Integer::intValue).average().orElse(0.0);
+            // Round to one decimal place for clean display ("4.5", not "4.5333…").
+            doctor.setRating(Math.round(avg * 10.0) / 10.0);
+            doctor.setReviewCount(allRatings.size());
+        }
+        doctorRepository.save(doctor);
+    }
+
     private DoctorResponse toResponse(Doctor doctor) {
         return new DoctorResponse(
                 doctor.getId(),
@@ -70,6 +90,7 @@ public class DoctorService {
                 doctor.getSpecialization(),
                 doctor.getExperience(),
                 doctor.getRating(),
+                doctor.getReviewCount(),
                 doctor.getAvailableSlots(),
                 doctor.getFees(),
                 doctor.getQualification(),

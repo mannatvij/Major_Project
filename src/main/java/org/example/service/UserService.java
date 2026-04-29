@@ -35,7 +35,13 @@ public class UserService {
 
         User user = switch (role) {
             case PATIENT -> new Patient();
-            case DOCTOR  -> new Doctor();
+            case DOCTOR  -> {
+                Doctor d = new Doctor();
+                // New doctor signups are blocked from patient listings until an
+                // admin approves them via /api/admin/doctors/{id}/approve.
+                d.setApproved(false);
+                yield d;
+            }
             default      -> new User();
         };
 
@@ -149,6 +155,8 @@ public class UserService {
             r.setQualification(d.getQualification());
             r.setFees(d.getFees() == 0.0 ? null : d.getFees());
             r.setRating(d.getRating() == 0.0 ? null : d.getRating());
+            r.setReviewCount(d.getReviewCount());
+            r.setApproved(d.isApproved());
         }
 
         return r;

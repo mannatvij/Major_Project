@@ -7,10 +7,15 @@ import {
 } from '@mui/material';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PaymentIcon from '@mui/icons-material/Payment';
+import DescriptionIcon from '@mui/icons-material/Description';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
-import { appointmentAPI, paymentAPI } from '../services/api';
+import { appointmentAPI, paymentAPI, reviewAPI } from '../services/api';
+import PrescriptionViewDialog from '../components/PrescriptionViewDialog';
+import RatingDialog from '../components/RatingDialog';
 import { useSnackbar } from '../context/SnackbarContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -61,6 +66,10 @@ export default function PatientAppointmentsPage() {
   const [cancelling, setCancelling]     = useState(null);
   const [confirmId, setConfirmId]       = useState(null);
   const [paying, setPaying]             = useState(null);
+  const [rxApptId, setRxApptId]         = useState(null);
+  const [rateAppt, setRateAppt]         = useState(null);
+  // Map of appointmentId → ReviewResponse (or false if checked and missing).
+  const [reviewMap, setReviewMap]       = useState({});
   const intervalRef                     = useRef(null);
 
   const load = useCallback(async (silent = false) => {
@@ -69,6 +78,15 @@ export default function PatientAppointmentsPage() {
     try {
       const { data } = await appointmentAPI.getAll();
       setAppointments(data);
+
+      // Resolve review status for each COMPLETED appointment in parallel (best-effort).
+      const completed = data.filter((a) => a.status === 'COMPLETED');
+      const entries = await Promise.all(completed.map((a) =>
+        reviewAPI.getByAppointment(a.id)
+          .then((r) => [a.id, r.data])
+          .catch(() => [a.id, false])
+      ));
+      setReviewMap(Object.fromEntries(entries));
     } catch (err) {
       const msg = err.response?.data?.message ?? 'Failed to load appointments.';
       setError(msg);
@@ -132,10 +150,17 @@ export default function PatientAppointmentsPage() {
             showError(err.response?.data?.message ?? 'Payment verification failed.');
           }
         },
-        modal: { ondismiss: () => setPaying(null) },
+        modal: {
+          ondismiss: () => {
+            paymentAPI.notifyFailure(order.orderId, 'Customer dismissed the checkout modal').catch(() => {});
+            setPaying(null);
+          },
+        },
       });
       rzp.on('payment.failed', (resp) => {
-        showError(resp.error?.description ?? 'Payment failed.');
+        const reason = resp.error?.description ?? 'Payment failed.';
+        paymentAPI.notifyFailure(order.orderId, reason).catch(() => {});
+        showError(reason);
       });
       rzp.open();
     } catch (err) {
@@ -151,7 +176,8 @@ export default function PatientAppointmentsPage() {
   const past      = appointments.filter((a) => a.status === 'COMPLETED');
   const cancelled = appointments.filter((a) => a.status === 'CANCELLED');
   const tabRows   = [upcoming, past, cancelled][tab];
-  const showAction = tab === 0;
+  // Upcoming has Pay/Cancel; Past has View Prescription; Cancelled has none.
+  const showAction = tab === 0 || tab === 1;
 
   return (
     <Container maxWidth="lg">
@@ -236,6 +262,27 @@ export default function PatientAppointmentsPage() {
                     {showAction && (
                       <TableCell align="center">
                         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          {a.status === 'COMPLETED' && (
+                            <Button size="small" color="primary" variant="outlined"
+                              startIcon={<DescriptionIcon />}
+                              onClick={() => setRxApptId(a.id)}>
+                              View prescription
+                            </Button>
+                          )}
+                          {a.status === 'COMPLETED' && reviewMap[a.id] === false && (
+                            <Button size="small" color="warning" variant="contained"
+                              startIcon={<StarBorderIcon />}
+                              onClick={() => setRateAppt(a)}>
+                              Rate doctor
+                            </Button>
+                          )}
+                          {a.status === 'COMPLETED' && reviewMap[a.id] && (
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                                       color: 'warning.main', fontSize: 13, fontWeight: 600 }}>
+                              <StarIcon fontSize="small" />
+                              {reviewMap[a.id].rating}/5 reviewed
+                            </Box>
+                          )}
                           {canPay && (
                             <Button size="small" color="primary" variant="contained"
                               startIcon={<PaymentIcon />}
@@ -272,6 +319,22 @@ export default function PatientAppointmentsPage() {
         confirmLabel="Yes, Cancel"
         cancelLabel="Keep It"
         confirmColor="error"
+      />
+
+      <PrescriptionViewDialog
+        open={!!rxApptId}
+        appointmentId={rxApptId}
+        onClose={() => setRxApptId(null)}
+      />
+
+      <RatingDialog
+        open={!!rateAppt}
+        appointment={rateAppt}
+        onClose={() => setRateAppt(null)}
+        onSaved={(rev) => {
+          success('Thanks — your review has been submitted.');
+          setReviewMap((prev) => ({ ...prev, [rev.appointmentId]: rev }));
+        }}
       />
     </Container>
   );

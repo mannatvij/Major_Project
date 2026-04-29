@@ -220,6 +220,46 @@ public class PaymentService {
         return saved;
     }
 
+    // ─── 2b. Mark payment as failed (called from frontend on Razorpay failure) ─
+
+    /**
+     * Records a failed checkout for an existing CREATED order and emails the patient.
+     * Idempotent — already-FAILED or already-PAID payments are returned untouched.
+     */
+    public Payment markPaymentFailed(String razorpayOrderId, String reason, String patientUsername) {
+        Payment payment = paymentRepository.findByRazorpayOrderId(razorpayOrderId)
+                .orElseThrow(() -> new AppException("Payment order not found", HttpStatus.NOT_FOUND));
+
+        User patient = userRepository.findByUsername(patientUsername)
+                .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
+
+        if (!payment.getPatientId().equals(patient.getId())) {
+            throw new AppException("This payment does not belong to you", HttpStatus.FORBIDDEN);
+        }
+        if (payment.getStatus() == PaymentStatus.PAID
+                || payment.getStatus() == PaymentStatus.FAILED) {
+            return payment;
+        }
+
+        payment.setStatus(PaymentStatus.FAILED);
+        Payment saved = paymentRepository.save(payment);
+
+        try {
+            Appointment appt = appointmentRepository.findById(payment.getAppointmentId()).orElse(null);
+            Doctor doctor = appt != null
+                    ? doctorRepository.findById(appt.getDoctorId()).orElse(null)
+                    : null;
+            if (appt != null && doctor != null) {
+                emailService.sendPaymentFailed(appt, patient, doctor,
+                        payment.getAmount(), razorpayOrderId, reason);
+            }
+        } catch (Exception e) {
+            log.warn("[EMAIL] Failed to send payment-failed notification: {}", e.getMessage());
+        }
+
+        return saved;
+    }
+
     // ─── 3. Refund (called by AppointmentService on cancellation) ─────────────
 
     /**

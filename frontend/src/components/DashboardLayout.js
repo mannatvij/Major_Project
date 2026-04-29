@@ -16,6 +16,7 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import HourglassBottomIcon from '@mui/icons-material/HourglassBottom';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -40,9 +41,10 @@ const DOCTOR_NAV = [
 ];
 
 const ADMIN_NAV = [
-  { label: 'Dashboard',       icon: <DashboardIcon />, path: '/dashboard' },
-  { label: 'User Management', icon: <PeopleIcon />,    path: '/dashboard/users' },
-  { label: 'Statistics',      icon: <BarChartIcon />,  path: '/dashboard/statistics' },
+  { label: 'Dashboard',         icon: <DashboardIcon />,        path: '/dashboard' },
+  { label: 'Statistics',        icon: <BarChartIcon />,         path: '/dashboard/statistics' },
+  { label: 'Doctor Approvals',  icon: <HourglassBottomIcon />,  path: '/dashboard/doctor-approvals' },
+  { label: 'User Management',   icon: <PeopleIcon />,           path: '/dashboard/users' },
 ];
 
 export default function DashboardLayout({ children }) {

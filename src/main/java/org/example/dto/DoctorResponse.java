@@ -17,6 +17,7 @@ public class DoctorResponse {
     private String specialization;
     private int experience;        // years
     private double rating;         // out of 5.0
+    private int reviewCount;       // number of reviews aggregated
     private List<LocalDateTime> availableSlots;
     private double fees;           // consultation fee
     private String qualification;

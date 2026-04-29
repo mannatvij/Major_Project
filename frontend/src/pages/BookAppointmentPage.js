@@ -136,12 +136,17 @@ export default function BookAppointmentPage() {
       prefill: { name: '', email: '' },
       theme: { color: '#1976d2' },
       modal: {
-        ondismiss: () => reject(new Error('Payment cancelled')),
+        ondismiss: () => {
+          paymentAPI.notifyFailure(order.orderId, 'Customer dismissed the checkout modal').catch(() => {});
+          reject(new Error('Payment cancelled'));
+        },
       },
     };
     const rzp = new window.Razorpay(options);
     rzp.on('payment.failed', (resp) => {
-      reject(new Error(resp.error?.description ?? 'Payment failed'));
+      const reason = resp.error?.description ?? 'Payment failed';
+      paymentAPI.notifyFailure(order.orderId, reason).catch(() => {});
+      reject(new Error(reason));
     });
     rzp.open();
   });

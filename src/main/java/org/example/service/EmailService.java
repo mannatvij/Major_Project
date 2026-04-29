@@ -2,6 +2,7 @@ package org.example.service;
 
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
 import org.example.model.Appointment;
 import org.example.model.AppointmentStatus;
 import org.example.model.Doctor;
@@ -103,6 +104,41 @@ public class EmailService {
                 patient.getEmail(), appt.getId());
     }
 
+    /** Sent when a doctor publishes a prescription — includes the PDF as attachment. */
+    @Async
+    public void sendPrescriptionEmail(Appointment appt, User patient, Doctor doctor,
+                                      byte[] pdfBytes, String filename) {
+        if (!isConfigured()) {
+            log.info("[EMAIL-SKIP] Prescription email skipped for appointment {}", appt.getId());
+            return;
+        }
+        log.info("[EMAIL] Attempting prescription email → patient={} appointment={}",
+                patient.getEmail(), appt.getId());
+        String subject = "Your Prescription – Smart Healthcare";
+        String body    = buildPrescriptionHtml(appt, patient, doctor);
+        sendWithAttachment(patient.getEmail(), subject, body,
+                pdfBytes, filename, "application/pdf");
+        log.info("[EMAIL] ✅ Prescription email sent → patient={}, appointment={}",
+                patient.getEmail(), appt.getId());
+    }
+
+    /** Sent when a Razorpay checkout fails or the user abandons the modal. */
+    @Async
+    public void sendPaymentFailed(Appointment appt, User patient, Doctor doctor,
+                                  double amount, String orderId, String reason) {
+        if (!isConfigured()) {
+            log.info("[EMAIL-SKIP] Payment-failed notification skipped for appointment {}", appt.getId());
+            return;
+        }
+        log.info("[EMAIL] Attempting payment-failed email → patient={} appointment={}",
+                patient.getEmail(), appt.getId());
+        String subject = "Payment Failed – Smart Healthcare";
+        String body    = buildPaymentFailedHtml(appt, patient, doctor, amount, orderId, reason);
+        send(patient.getEmail(), subject, body);
+        log.info("[EMAIL] ✅ Payment-failed email sent → patient={}, appointment={}",
+                patient.getEmail(), appt.getId());
+    }
+
     /** Sent when an appointment that was paid for gets cancelled and a refund is issued. */
     @Async
     public void sendRefundNotification(Appointment appt, User patient, Doctor doctor,
@@ -165,6 +201,30 @@ public class EmailService {
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            log.error("[EMAIL] ❌ Failed to send '{}' to {}: {}", subject, to, e.getMessage());
+        }
+    }
+
+    /** Send to one recipient with a binary attachment (used for PDFs). */
+    private void sendWithAttachment(String to, String subject, String htmlBody,
+                                    byte[] data, String filename, String contentType) {
+        if (to == null || to.isBlank()) {
+            log.warn("[EMAIL] ❌ Recipient address is blank — skipping '{}'", subject);
+            return;
+        }
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
+            helper.setFrom(mailFrom);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            if (data != null && data.length > 0) {
+                helper.addAttachment(filename != null ? filename : "attachment.bin",
+                        new ByteArrayResource(data), contentType);
+            }
             mailSender.send(msg);
         } catch (Exception e) {
             log.error("[EMAIL] ❌ Failed to send '{}' to {}: {}", subject, to, e.getMessage());
@@ -254,6 +314,42 @@ public class EmailService {
             "<p style='margin-top:20px;padding:12px;background:#fff8e1;border-left:4px solid #f9a825;border-radius:4px'>" +
             "⏳ Your appointment is now <strong>awaiting doctor approval</strong>. " +
             "You'll receive another email once Dr. " + doctor.getUsername() + " confirms." +
+            "</p>"
+        );
+    }
+
+    private String buildPrescriptionHtml(Appointment appt, User patient, Doctor doctor) {
+        String when = appt.getDateTime() != null ? appt.getDateTime().format(DATE_FMT) : "—";
+        return wrapLayout("Prescription Issued ✓", "#1565c0",
+            "<p>Dear <strong>" + patient.getUsername() + "</strong>,</p>" +
+            "<p>Dr. " + doctor.getUsername() + " has issued a prescription for your consultation. " +
+            "The PDF is attached to this email and is also available in <strong>My Appointments</strong>.</p>" +
+            buildDetailsTable(doctor, when, appt.getSymptoms()) +
+            "<p style='margin-top:20px;padding:12px;background:#fff8e1;border-left:4px solid #f9a825;border-radius:4px'>" +
+            "Please follow the medication schedule as prescribed. Reach out to your doctor if you experience any adverse reactions." +
+            "</p>"
+        );
+    }
+
+    private String buildPaymentFailedHtml(Appointment appt, User patient, Doctor doctor,
+                                          double amount, String orderId, String reason) {
+        String when = appt.getDateTime() != null ? appt.getDateTime().format(DATE_FMT) : "—";
+        String safeReason = (reason == null || reason.isBlank())
+                ? "The payment could not be completed."
+                : reason;
+        return wrapLayout("Payment Failed", "#c62828",
+            "<p>Dear <strong>" + patient.getUsername() + "</strong>,</p>" +
+            "<p>Your payment of <strong style='color:#c62828'>₹" +
+            String.format("%.2f", amount) + "</strong> for the consultation below could not be completed.</p>" +
+            buildDetailsTable(doctor, when, appt.getSymptoms()) +
+            "<table style='border-collapse:collapse;width:100%;margin-top:12px'>" +
+            row("Amount", "₹" + String.format("%.2f", amount)) +
+            row("Order ID", orderId != null ? orderId : "—") +
+            row("Reason", safeReason) +
+            "</table>" +
+            "<p style='margin-top:20px;padding:12px;background:#fff8e1;border-left:4px solid #f9a825;border-radius:4px'>" +
+            "Don't worry — your slot is still held. Open <strong>My Appointments</strong> in Smart Healthcare " +
+            "and click <strong>Pay Now</strong> to retry the payment." +
             "</p>"
         );
     }

@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.CreateOrderRequest;
+import org.example.dto.PaymentFailedRequest;
 import org.example.dto.VerifyPaymentRequest;
 import org.example.model.Payment;
 import org.example.service.PaymentService;
@@ -51,6 +52,21 @@ public class PaymentController {
                 "success", true,
                 "paymentId", payment.getId(),
                 "appointmentId", payment.getAppointmentId(),
+                "status", payment.getStatus().name()
+        ));
+    }
+
+    @Operation(summary = "Record a failed Razorpay checkout and notify the patient by email")
+    @PostMapping("/failed")
+    @PreAuthorize("hasRole('PATIENT')")
+    public ResponseEntity<Map<String, Object>> markFailed(
+            Authentication auth,
+            @Valid @RequestBody PaymentFailedRequest request) {
+        Payment payment = paymentService.markPaymentFailed(
+                request.getRazorpayOrderId(), request.getReason(), auth.getName());
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "paymentId", payment.getId(),
                 "status", payment.getStatus().name()
         ));
     }

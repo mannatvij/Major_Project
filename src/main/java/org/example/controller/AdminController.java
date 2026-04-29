@@ -9,13 +9,22 @@ import org.example.dto.UserProfileResponse;
 import org.example.dto.UserStatusUpdateRequest;
 import org.example.model.*;
 import org.example.repository.AppointmentRepository;
+import org.example.repository.PaymentRepository;
+import org.example.repository.PrescriptionRepository;
+import org.example.repository.ReviewRepository;
 import org.example.repository.UserRepository;
+import org.example.repository.DoctorRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,6 +39,20 @@ public class AdminController {
 
     private final UserRepository userRepository;
     private final AppointmentRepository appointmentRepository;
+    private final PaymentRepository paymentRepository;
+    private final ReviewRepository reviewRepository;
+    private final PrescriptionRepository prescriptionRepository;
+    private final DoctorRepository doctorRepository;
+    private final MongoTemplate mongoTemplate;
+
+    @Value("${ml.service.enabled:false}")
+    private boolean mlEnabled;
+    @Value("${ml.service.url:}")
+    private String mlServiceUrl;
+    @Value("${razorpay.enabled:false}")
+    private boolean razorpayLive;
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
 
     // ─── GET /api/admin/stats ─────────────────────────────────────────────────
 
@@ -106,14 +129,92 @@ public class AdminController {
                 .limit(5)
                 .collect(Collectors.toList());
 
-        // ── Total revenue ─────────────────────────────────────────────────────
-        double totalRevenue = allAppointments.stream()
-                .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
-                .mapToDouble(a -> {
-                    Doctor d = doctorsById.get(a.getDoctorId());
-                    return d != null ? d.getFees() : 0.0;
+        // ── Real payment analytics (replaces fake completed × fees revenue) ────
+        List<Payment> allPayments = paymentRepository.findAll();
+
+        double grossRevenue  = allPayments.stream()
+                .filter(p -> p.getStatus() == PaymentStatus.PAID
+                          || p.getStatus() == PaymentStatus.REFUNDED)
+                .mapToDouble(Payment::getAmount).sum();
+        double refundsAmount = allPayments.stream()
+                .filter(p -> p.getStatus() == PaymentStatus.REFUNDED)
+                .mapToDouble(Payment::getAmount).sum();
+        double netRevenue    = grossRevenue - refundsAmount;
+
+        long paidCount     = allPayments.stream().filter(p -> p.getStatus() == PaymentStatus.PAID).count();
+        long refundCount   = allPayments.stream().filter(p -> p.getStatus() == PaymentStatus.REFUNDED).count();
+        long failedCount   = allPayments.stream().filter(p -> p.getStatus() == PaymentStatus.FAILED).count();
+        long createdCount  = allPayments.stream().filter(p -> p.getStatus() == PaymentStatus.CREATED).count();
+        long resolvedCount = paidCount + failedCount + refundCount;
+        double successRate = resolvedCount == 0 ? 0.0 : ((double) paidCount / resolvedCount) * 100.0;
+        double avgTicket   = paidCount == 0 ? 0.0 : grossRevenue / (paidCount + refundCount);
+
+        // Revenue trend per day (PAID + REFUNDED amounts grouped by paidAt date)
+        Map<LocalDate, Double> revByDay = allPayments.stream()
+                .filter(p -> (p.getStatus() == PaymentStatus.PAID || p.getStatus() == PaymentStatus.REFUNDED)
+                          && p.getPaidAt() != null
+                          && !p.getPaidAt().toLocalDate().isBefore(cutoff.toLocalDate()))
+                .collect(Collectors.groupingBy(
+                        p -> p.getPaidAt().toLocalDate(),
+                        Collectors.summingDouble(Payment::getAmount)));
+
+        List<Map<String, Object>> revenueTrend = new ArrayList<>();
+        for (int i = days - 1; i >= 0; i--) {
+            LocalDate d = LocalDate.now().minusDays(i);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("date",   d.toString());
+            entry.put("amount", revByDay.getOrDefault(d, 0.0));
+            revenueTrend.add(entry);
+        }
+
+        // ── Reviews analytics ──────────────────────────────────────────────────
+        List<Review> allReviews = reviewRepository.findAll();
+        double platformAvgRating = allReviews.isEmpty()
+                ? 0.0
+                : Math.round(allReviews.stream().mapToInt(Review::getRating).average().orElse(0.0) * 10.0) / 10.0;
+
+        List<Map<String, Object>> topRatedDoctors = doctorsById.values().stream()
+                .filter(d -> d.getReviewCount() > 0)
+                .sorted(Comparator
+                        .<Doctor>comparingDouble(Doctor::getRating).reversed()
+                        .thenComparing(Comparator.comparingInt(Doctor::getReviewCount).reversed()))
+                .limit(5)
+                .map(d -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("doctorId",       d.getId());
+                    m.put("name",           d.getUsername());
+                    m.put("specialization", d.getSpecialization());
+                    m.put("rating",         d.getRating());
+                    m.put("reviewCount",    d.getReviewCount());
+                    return m;
                 })
-                .sum();
+                .collect(Collectors.toList());
+
+        List<Map<String, Object>> recentReviews = allReviews.stream()
+                .sorted(Comparator.comparing(Review::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(10)
+                .map(r -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("rating",      r.getRating());
+                    m.put("comment",     r.getComment());
+                    m.put("createdAt",   r.getCreatedAt());
+                    Doctor d = doctorsById.get(r.getDoctorId());
+                    m.put("doctorName",  d != null ? d.getUsername() : "Unknown");
+                    User patient = allUsers.stream()
+                            .filter(u -> u.getId().equals(r.getPatientId()))
+                            .findFirst().orElse(null);
+                    m.put("patientName", patient != null ? patient.getUsername() : "Unknown");
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        // ── Cancellation rate + prescription count + pending doctor approvals ──
+        double cancellationRate = allAppointments.isEmpty()
+                ? 0.0
+                : Math.round((cancelled * 1000.0 / allAppointments.size())) / 10.0;
+        long prescriptionCount = prescriptionRepository.count();
+        long pendingDoctors    = doctorRepository.findPending().size();
 
         // ── Assemble response ─────────────────────────────────────────────────
         Map<String, Object> stats = new LinkedHashMap<>();
@@ -129,7 +230,32 @@ public class AdminController {
         stats.put("appointmentsRecent",   recentDays);
         stats.put("topSpecializations",   topSpecializations);
         stats.put("doctorPerformance",    doctorPerformance);
-        stats.put("totalRevenue",         totalRevenue);
+
+        // Real payment-driven revenue + payment KPIs
+        stats.put("grossRevenue",         grossRevenue);
+        stats.put("refundsAmount",        refundsAmount);
+        stats.put("netRevenue",           netRevenue);
+        stats.put("totalRevenue",         netRevenue); // legacy key kept for old UI bindings
+        stats.put("revenueTrend",         revenueTrend);
+        stats.put("paymentCounts", Map.of(
+                "paid",     paidCount,
+                "refunded", refundCount,
+                "failed",   failedCount,
+                "created",  createdCount));
+        stats.put("paymentSuccessRate",   Math.round(successRate * 10.0) / 10.0);
+        stats.put("avgTicketSize",        Math.round(avgTicket * 100.0) / 100.0);
+
+        // Reviews
+        stats.put("platformAvgRating",    platformAvgRating);
+        stats.put("totalReviews",         allReviews.size());
+        stats.put("topRatedDoctors",      topRatedDoctors);
+        stats.put("recentReviews",        recentReviews);
+
+        // Other ops metrics
+        stats.put("cancellationRate",     cancellationRate);
+        stats.put("totalPrescriptions",   prescriptionCount);
+        stats.put("pendingDoctorApprovals", pendingDoctors);
+
         stats.put("days",                 days);
 
         return ResponseEntity.ok(stats);
@@ -241,6 +367,227 @@ public class AdminController {
         return ResponseEntity.ok(toUserResponse(user));
     }
 
+    // ─── GET /api/admin/activity ─────────────────────────────────────────────
+
+    @Operation(summary = "Recent platform activity feed (last N events across modules)")
+    @GetMapping("/activity")
+    public ResponseEntity<List<Map<String, Object>>> getActivity(
+            @RequestParam(defaultValue = "20") int limit) {
+
+        Map<String, Doctor> doctorsById = userRepository.findAll().stream()
+                .filter(u -> u instanceof Doctor)
+                .collect(Collectors.toMap(User::getId, u -> (Doctor) u));
+        Map<String, String> usersById = userRepository.findAll().stream()
+                .collect(Collectors.toMap(User::getId, User::getUsername));
+
+        List<Map<String, Object>> events = new ArrayList<>();
+
+        appointmentRepository.findAll().forEach(a -> {
+            if (a.getCreatedAt() == null) return;
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("type", "APPOINTMENT_BOOKED");
+            e.put("at",   a.getCreatedAt());
+            e.put("text", String.format("%s booked with Dr. %s",
+                    usersById.getOrDefault(a.getPatientId(), "patient"),
+                    usersById.getOrDefault(a.getDoctorId(), "doctor")));
+            events.add(e);
+        });
+        paymentRepository.findAll().forEach(p -> {
+            if (p.getStatus() == PaymentStatus.PAID && p.getPaidAt() != null) {
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("type", "PAYMENT_RECEIVED");
+                e.put("at",   p.getPaidAt());
+                e.put("text", String.format("₹%.0f paid by %s",
+                        p.getAmount(), usersById.getOrDefault(p.getPatientId(), "patient")));
+                events.add(e);
+            } else if (p.getStatus() == PaymentStatus.REFUNDED && p.getRefundedAt() != null) {
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("type", "REFUND_ISSUED");
+                e.put("at",   p.getRefundedAt());
+                e.put("text", String.format("₹%.0f refunded to %s",
+                        p.getAmount(), usersById.getOrDefault(p.getPatientId(), "patient")));
+                events.add(e);
+            } else if (p.getStatus() == PaymentStatus.FAILED && p.getCreatedAt() != null) {
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("type", "PAYMENT_FAILED");
+                e.put("at",   p.getCreatedAt());
+                e.put("text", String.format("Payment of ₹%.0f failed for %s",
+                        p.getAmount(), usersById.getOrDefault(p.getPatientId(), "patient")));
+                events.add(e);
+            }
+        });
+        prescriptionRepository.findAll().forEach(rx -> {
+            if (rx.getCreatedAt() == null) return;
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("type", "PRESCRIPTION_ISSUED");
+            e.put("at",   rx.getCreatedAt());
+            e.put("text", String.format("Dr. %s prescribed for %s",
+                    usersById.getOrDefault(rx.getDoctorId(), "doctor"),
+                    usersById.getOrDefault(rx.getPatientId(), "patient")));
+            events.add(e);
+        });
+        reviewRepository.findAll().forEach(r -> {
+            if (r.getCreatedAt() == null) return;
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("type", "REVIEW_LEFT");
+            e.put("at",   r.getCreatedAt());
+            e.put("text", String.format("%s rated Dr. %s %d★",
+                    usersById.getOrDefault(r.getPatientId(), "patient"),
+                    usersById.getOrDefault(r.getDoctorId(), "doctor"),
+                    r.getRating()));
+            events.add(e);
+        });
+
+        events.sort(Comparator.comparing(
+                e -> (LocalDateTime) e.get("at"),
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return ResponseEntity.ok(events.stream().limit(limit).collect(Collectors.toList()));
+    }
+
+    // ─── GET /api/admin/health ───────────────────────────────────────────────
+
+    @Operation(summary = "Live system health: DB, mailer, ML service, payments")
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> getHealth() {
+        Map<String, Object> health = new LinkedHashMap<>();
+
+        // Mongo: any document read = up.
+        boolean mongoUp;
+        try {
+            userRepository.count();
+            mongoUp = true;
+        } catch (Exception e) {
+            mongoUp = false;
+        }
+        health.put("mongo",  Map.of("up", mongoUp));
+
+        // Mailer: configured (env var present) is "ready"; not actually pinged.
+        boolean mailerConfigured = mailUsername != null && !mailUsername.isBlank()
+                && !mailUsername.startsWith("$");
+        health.put("mailer", Map.of("configured", mailerConfigured));
+
+        // ML service: just expose the config flag — actual ping happens on chat.
+        Map<String, Object> ml = new LinkedHashMap<>();
+        ml.put("enabled", mlEnabled);
+        ml.put("url",     mlServiceUrl);
+        health.put("ml",     ml);
+
+        // Razorpay: live mode flag from config.
+        health.put("razorpay", Map.of("liveMode", razorpayLive));
+
+        return ResponseEntity.ok(health);
+    }
+
+    // ─── GET /api/admin/export/{type} ────────────────────────────────────────
+
+    @Operation(summary = "Export users / appointments / payments / reviews as CSV")
+    @GetMapping(value = "/export/{type}", produces = "text/csv")
+    public ResponseEntity<byte[]> exportCsv(@PathVariable String type) {
+        StringBuilder csv = new StringBuilder();
+        String filename;
+        switch (type) {
+            case "users" -> {
+                csv.append("id,username,email,role,active,createdAt,specialization,rating,reviewCount,approved\n");
+                for (User u : userRepository.findAll()) {
+                    String spec = "", approved = "";
+                    Double rating = null; Integer reviews = null;
+                    if (u instanceof Doctor d) {
+                        spec     = nz(d.getSpecialization());
+                        rating   = d.getRating();
+                        reviews  = d.getReviewCount();
+                        approved = String.valueOf(d.isApproved());
+                    }
+                    csv.append(csvRow(
+                            u.getId(), u.getUsername(), u.getEmail(),
+                            u.getRole() != null ? u.getRole().name() : "",
+                            String.valueOf(u.getActive() == null || u.getActive()),
+                            u.getCreatedAt() != null ? u.getCreatedAt().toString() : "",
+                            spec,
+                            rating == null ? "" : String.valueOf(rating),
+                            reviews == null ? "" : String.valueOf(reviews),
+                            approved));
+                }
+                filename = "users.csv";
+            }
+            case "appointments" -> {
+                csv.append("id,patientId,doctorId,dateTime,status,fee,paymentId,createdAt\n");
+                for (Appointment a : appointmentRepository.findAll()) {
+                    csv.append(csvRow(
+                            a.getId(), a.getPatientId(), a.getDoctorId(),
+                            a.getDateTime() != null ? a.getDateTime().toString() : "",
+                            a.getStatus() != null ? a.getStatus().name() : "",
+                            a.getFee() == null ? "" : String.valueOf(a.getFee()),
+                            nz(a.getPaymentId()),
+                            a.getCreatedAt() != null ? a.getCreatedAt().toString() : ""));
+                }
+                filename = "appointments.csv";
+            }
+            case "payments" -> {
+                csv.append("id,razorpayOrderId,razorpayPaymentId,appointmentId,patientId,amount,currency,status,createdAt,paidAt,refundedAt\n");
+                for (Payment p : paymentRepository.findAll()) {
+                    csv.append(csvRow(
+                            p.getId(), nz(p.getRazorpayOrderId()), nz(p.getRazorpayPaymentId()),
+                            nz(p.getAppointmentId()), nz(p.getPatientId()),
+                            String.valueOf(p.getAmount()), nz(p.getCurrency()),
+                            p.getStatus() != null ? p.getStatus().name() : "",
+                            p.getCreatedAt() != null ? p.getCreatedAt().toString() : "",
+                            p.getPaidAt()    != null ? p.getPaidAt().toString()    : "",
+                            p.getRefundedAt() != null ? p.getRefundedAt().toString() : ""));
+                }
+                filename = "payments.csv";
+            }
+            case "reviews" -> {
+                csv.append("id,appointmentId,doctorId,patientId,rating,comment,createdAt\n");
+                for (Review r : reviewRepository.findAll()) {
+                    csv.append(csvRow(
+                            r.getId(), nz(r.getAppointmentId()), nz(r.getDoctorId()), nz(r.getPatientId()),
+                            String.valueOf(r.getRating()), nz(r.getComment()),
+                            r.getCreatedAt() != null ? r.getCreatedAt().toString() : ""));
+                }
+                filename = "reviews.csv";
+            }
+            default -> throw new RuntimeException("Unknown export type: " + type +
+                    " (expected one of: users, appointments, payments, reviews)");
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .body(csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    // ─── Doctor approval workflow ────────────────────────────────────────────
+
+    @Operation(summary = "List doctors awaiting admin approval")
+    @GetMapping("/doctors/pending")
+    public ResponseEntity<List<UserProfileResponse>> listPendingDoctors() {
+        return ResponseEntity.ok(doctorRepository.findPending().stream()
+                .map(this::toUserResponse)
+                .collect(Collectors.toList()));
+    }
+
+    @Operation(summary = "Approve a doctor so they appear to patients")
+    @PutMapping("/doctors/{id}/approve")
+    public ResponseEntity<UserProfileResponse> approveDoctor(@PathVariable String id) {
+        Doctor d = doctorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Doctor not found: " + id));
+        d.setApproved(true);
+        doctorRepository.save(d);
+        return ResponseEntity.ok(toUserResponse(d));
+    }
+
+    @Operation(summary = "Reject (deactivate) a pending doctor signup")
+    @PutMapping("/doctors/{id}/reject")
+    public ResponseEntity<UserProfileResponse> rejectDoctor(@PathVariable String id) {
+        Doctor d = doctorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Doctor not found: " + id));
+        d.setApproved(false);
+        d.setActive(false);
+        doctorRepository.save(d);
+        return ResponseEntity.ok(toUserResponse(d));
+    }
+
     // ─── DELETE /api/admin/users/{id} ────────────────────────────────────────
 
     @Operation(summary = "Permanently delete a user account")
@@ -275,6 +622,28 @@ public class AdminController {
         return m;
     }
 
+    /** Quote a single CSV cell — escapes quotes, wraps if cell contains comma/newline/quote. */
+    private static String csvCell(String s) {
+        if (s == null) return "";
+        boolean needsQuotes = s.indexOf(',') >= 0 || s.indexOf('"') >= 0
+                || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0;
+        String escaped = s.replace("\"", "\"\"");
+        return needsQuotes ? "\"" + escaped + "\"" : escaped;
+    }
+
+    /** Join cells into a CSV row terminated with a newline. */
+    private static String csvRow(String... cells) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cells.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(csvCell(cells[i]));
+        }
+        sb.append('\n');
+        return sb.toString();
+    }
+
+    private static String nz(String s) { return s == null ? "" : s; }
+
     private UserProfileResponse toUserResponse(User user) {
         UserProfileResponse r = new UserProfileResponse();
         r.setId(user.getId());
@@ -291,6 +660,8 @@ public class AdminController {
             r.setQualification(d.getQualification());
             r.setFees(d.getFees() == 0.0 ? null : d.getFees());
             r.setRating(d.getRating() == 0.0 ? null : d.getRating());
+            r.setReviewCount(d.getReviewCount());
+            r.setApproved(d.isApproved());
         }
         return r;
     }

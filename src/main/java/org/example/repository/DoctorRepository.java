@@ -41,4 +41,19 @@ public interface DoctorRepository extends MongoRepository<Doctor, String> {
 
     @Query("{ 'availableSlots': { $exists: true, $not: { $size: 0 } } }")
     List<Doctor> findAvailableDoctors();
+
+    /**
+     * Doctors visible to patients: role matches AND approved is true OR missing.
+     * Pre-feature records have no `approved` field; treat them as approved.
+     */
+    @Query("{ 'role': ?0, $or: [ { 'approved': { $exists: false } }, { 'approved': true } ] }")
+    Page<Doctor> findApprovedByRole(Role role, Pageable pageable);
+
+    @Query(value = "{ 'role': ?1, 'specialization': { $regex: '^?0$', $options: 'i' }, " +
+                   "$or: [ { 'approved': { $exists: false } }, { 'approved': true } ] }")
+    Page<Doctor> findApprovedBySpecializationAndRole(String specialization, Role role, Pageable pageable);
+
+    /** Doctors awaiting admin approval (approved == false explicitly). */
+    @Query("{ 'role': 'DOCTOR', 'approved': false }")
+    List<Doctor> findPending();
 }

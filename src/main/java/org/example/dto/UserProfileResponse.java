@@ -28,6 +28,10 @@ public class UserProfileResponse {
     private String qualification;
     private Double fees;
     private Double rating;
+    private Integer reviewCount;
+
+    /** Admin approval gate for doctors; null/true for everyone else. */
+    private Boolean approved;
 
     // ── Admin-managed ────────────────────────────────────────────────────────
     private Boolean active;

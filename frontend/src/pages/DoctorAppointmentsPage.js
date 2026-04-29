@@ -10,6 +10,7 @@ import AppointmentCard from '../components/AppointmentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
+import PrescriptionDialog from '../components/PrescriptionDialog';
 import { appointmentAPI } from '../services/api';
 import { useSnackbar } from '../context/SnackbarContext';
 
@@ -46,6 +47,7 @@ export default function DoctorAppointmentsPage() {
   const [error, setError]               = useState('');
   const [filter, setFilter]             = useState(initialFilter);
   const [acting, setActing]             = useState(false);
+  const [rxAppt, setRxAppt]             = useState(null);   // appointment being prescribed
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +77,10 @@ export default function DoctorAppointmentsPage() {
         success(label);
       }
       setAppointments((prev) => prev.map((a) => (a.id === id ? resp.data : a)));
+      // Auto-open prescription form right after the doctor marks an appointment complete
+      if (status === 'COMPLETED') {
+        setRxAppt(resp.data);
+      }
     } catch (err) {
       showError(err.response?.data?.message ?? 'Action failed.');
     } finally {
@@ -167,11 +173,19 @@ export default function DoctorAppointmentsPage() {
                 userRole="DOCTOR"
                 onStatusChange={handleStatusChange}
                 acting={acting}
+                onPrescribe={(appt) => setRxAppt(appt)}
               />
             </Grid>
           ))}
         </Grid>
       )}
+
+      <PrescriptionDialog
+        open={!!rxAppt}
+        appointment={rxAppt}
+        onClose={() => setRxAppt(null)}
+        onSaved={() => success('Prescription saved & emailed to patient.')}
+      />
     </Container>
   );
 }
