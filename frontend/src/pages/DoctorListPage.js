@@ -18,6 +18,8 @@ const SPECIALIZATIONS = [
 ];
 
 const PAGE_SIZE = 9;
+// When the user is searching by name, fetch the full list so search is global.
+const SEARCH_FETCH_SIZE = 1000;
 
 export default function DoctorListPage() {
   const [doctors, setDoctors]           = useState([]);
@@ -45,22 +47,24 @@ export default function DoctorListPage() {
     setLoading(true);
     setError('');
     try {
-      let response;
-      if (specialization) {
-        response = await doctorAPI.search(specialization, page - 1, PAGE_SIZE);
-      } else {
-        response = await doctorAPI.getAll(page - 1, PAGE_SIZE);
-      }
+      // While searching, pull the whole list so name match isn't limited to one page.
+      const searching = debouncedSearch.trim().length > 0;
+      const reqPage = searching ? 0 : page - 1;
+      const reqSize = searching ? SEARCH_FETCH_SIZE : PAGE_SIZE;
+
+      const response = specialization
+        ? await doctorAPI.search(specialization, reqPage, reqSize)
+        : await doctorAPI.getAll(reqPage, reqSize);
       const data = response.data;
       const list = Array.isArray(data) ? data : (data.content ?? []);
       setDoctors(list);
-      setTotalPages(data.totalPages ?? 1);
+      setTotalPages(searching ? 1 : (data.totalPages ?? 1));
     } catch (err) {
       setError(err.response?.data?.message ?? 'Unable to connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [specialization, page]);
+  }, [specialization, page, debouncedSearch]);
 
   useEffect(() => {
     fetchDoctors();
@@ -168,8 +172,8 @@ export default function DoctorListPage() {
             ))}
           </Box>
 
-          {/* ── Pagination ─────────────────────────────────────────────── */}
-          {totalPages > 1 && (
+          {/* Hide pagination while searching — we already have the full list loaded */}
+          {totalPages > 1 && !debouncedSearch && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
               <Pagination
                 count={totalPages}

@@ -90,7 +90,7 @@ function ChartCard({ title, children, height = 280 }) {
 function CustomBarLabel({ x, y, width, value }) {
   if (!value) return null;
   return (
-    <text x={x + width / 2} y={y - 4} fill="#555" textAnchor="middle" fontSize={11}>
+    <text x={x + width / 2} y={y - 4} fill="currentColor" opacity={0.7} textAnchor="middle" fontSize={11}>
       {value}
     </text>
   );

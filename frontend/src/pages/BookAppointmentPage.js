@@ -232,7 +232,7 @@ export default function BookAppointmentPage() {
       <Grid container spacing={3}>
         {/* ── Doctor info ──────────────────────────────────────────────── */}
         <Grid item xs={12} md={4}>
-          <Card elevation={2} sx={{ bgcolor: '#e3f2fd', height: '100%' }}>
+          <Card elevation={2} sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(100,181,246,0.08)' : '#e3f2fd', height: '100%' }}>
             <CardContent>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Dr. {doctor?.name}
@@ -274,7 +274,7 @@ export default function BookAppointmentPage() {
 
               {/* Booked confirmation */}
               {booked && (
-                <Box sx={{ mb: 3, p: 2.5, bgcolor: '#e8f5e9', borderRadius: 2, border: '1px solid #a5d6a7' }}>
+                <Box sx={{ mb: 3, p: 2.5, bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(102,187,106,0.10)' : '#e8f5e9', borderRadius: 2, border: 1, borderColor: (t) => t.palette.mode === 'dark' ? 'rgba(102,187,106,0.4)' : '#a5d6a7' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                     <CheckCircleIcon color="success" />
                     <Typography variant="subtitle1" fontWeight="bold" color="success.main">
@@ -391,7 +391,7 @@ export default function BookAppointmentPage() {
                         InputProps={{ readOnly: true }}
                         InputLabelProps={{ shrink: true }}
                         size="medium"
-                        sx={{ bgcolor: 'grey.50' }}
+                        sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50' }}
                       />
                     </Grid>
                   )}

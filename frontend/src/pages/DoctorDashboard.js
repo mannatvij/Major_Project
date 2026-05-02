@@ -28,30 +28,34 @@ export default function DoctorDashboard() {
       .catch(() => {});
   }, []);
 
+  const now          = new Date();
   const todayAppts   = appointments.filter((a) => isToday(a.dateTime));
-  const pending      = appointments.filter((a) => a.status === 'PENDING').length;
+  // Expired pending appointments can't be accepted anymore — exclude them from the count
+  const pending      = appointments.filter(
+    (a) => a.status === 'PENDING' && new Date(a.dateTime) > now
+  ).length;
   const confirmed    = appointments.filter((a) => a.status === 'CONFIRMED').length;
 
   const CARDS = [
     {
       title: "Today's Appointments",
       value: todayAppts.length,
-      icon: <CalendarTodayIcon sx={{ fontSize: 40, color: '#1976d2' }} />,
-      color: '#e3f2fd', border: '#1976d2',
+      icon: <CalendarTodayIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
+      light: '#e3f2fd', dark: 'rgba(100,181,246,0.10)', border: '#1976d2',
       onClick: () => navigate('/dashboard/doctor-appointments'),
     },
     {
       title: 'Pending Confirmation',
       value: pending,
-      icon: <AccessTimeIcon sx={{ fontSize: 40, color: '#ed6c02' }} />,
-      color: '#fff3e0', border: '#ed6c02',
+      icon: <AccessTimeIcon sx={{ fontSize: 40, color: 'warning.main' }} />,
+      light: '#fff3e0', dark: 'rgba(255,167,38,0.10)', border: '#ed6c02',
       onClick: () => navigate('/dashboard/doctor-appointments?filter=PENDING'),
     },
     {
       title: 'Confirmed Today',
       value: confirmed,
-      icon: <EventAvailableIcon sx={{ fontSize: 40, color: '#2e7d32' }} />,
-      color: '#e8f5e9', border: '#2e7d32',
+      icon: <EventAvailableIcon sx={{ fontSize: 40, color: 'success.main' }} />,
+      light: '#e8f5e9', dark: 'rgba(102,187,106,0.10)', border: '#2e7d32',
       onClick: () => navigate('/dashboard/doctor-appointments?filter=CONFIRMED'),
     },
   ];
@@ -66,10 +70,11 @@ export default function DoctorDashboard() {
       </Typography>
 
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {CARDS.map(({ title, value, icon, color, border, onClick }) => (
+        {CARDS.map(({ title, value, icon, light, dark, border, onClick }) => (
           <Grid item xs={12} sm={4} key={title}>
             <Card elevation={2} onClick={onClick} sx={{
-              bgcolor: color, borderLeft: `5px solid ${border}`,
+              bgcolor: (t) => t.palette.mode === 'dark' ? dark : light,
+              borderLeft: `5px solid ${border}`,
               cursor: onClick ? 'pointer' : 'default',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 },
@@ -96,7 +101,7 @@ export default function DoctorDashboard() {
             {todayAppts.slice(0, 5).map((a) => (
               <Box key={a.id} sx={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                py: 1, borderBottom: '1px solid #f0f0f0',
+                py: 1, borderBottom: 1, borderColor: 'divider',
               }}>
                 <Typography variant="body2">
                   {new Date(a.dateTime).toLocaleTimeString('en-IN', { timeStyle: 'short' })} — {a.patientName}
@@ -116,14 +121,14 @@ export default function DoctorDashboard() {
         <CardContent>
           <Typography variant="h6" fontWeight="bold" gutterBottom>Quick Actions</Typography>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Button variant="contained" startIcon={<CalendarTodayIcon />}
+            <Button variant="contained" color="primary" startIcon={<CalendarTodayIcon />}
               onClick={() => navigate('/dashboard/doctor-appointments')}
-              sx={{ textTransform: 'none', bgcolor: '#1976d2' }}>
+              sx={{ textTransform: 'none' }}>
               View All Appointments
             </Button>
-            <Button variant="outlined" startIcon={<EventAvailableIcon />}
+            <Button variant="outlined" color="success" startIcon={<EventAvailableIcon />}
               onClick={() => navigate('/dashboard/availability')}
-              sx={{ textTransform: 'none', borderColor: '#2e7d32', color: '#2e7d32' }}>
+              sx={{ textTransform: 'none' }}>
               Manage Availability
             </Button>
           </Box>

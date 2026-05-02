@@ -26,6 +26,9 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String mailFrom;
 
+    @Value("${mail.from.name:Healthcare App}")
+    private String mailFromName;
+
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy 'at' hh:mm a");
 
@@ -197,7 +200,7 @@ public class EmailService {
         try {
             MimeMessage msg = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
-            helper.setFrom(mailFrom);
+            helper.setFrom(mailFrom, mailFromName);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
@@ -217,7 +220,7 @@ public class EmailService {
         try {
             MimeMessage msg = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
-            helper.setFrom(mailFrom);
+            helper.setFrom(mailFrom, mailFromName);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
@@ -240,7 +243,7 @@ public class EmailService {
         try {
             MimeMessage msg = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
-            helper.setFrom(mailFrom);
+            helper.setFrom(mailFrom, mailFromName);
             helper.setTo(to);
             if (cc != null && !cc.isBlank() && !cc.equals(to)) {
                 helper.setCc(cc);

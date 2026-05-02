@@ -160,7 +160,7 @@ export default function DoctorAvailabilityPage() {
             </Grid>
             <Grid item xs={12} sm={3}>
               <Button variant="contained" fullWidth startIcon={<AddIcon />}
-                onClick={handleAdd} sx={{ textTransform: 'none', bgcolor: '#1976d2' }}>
+                onClick={handleAdd} color="primary" sx={{ textTransform: 'none' }}>
                 Add
               </Button>
             </Grid>
@@ -177,7 +177,7 @@ export default function DoctorAvailabilityPage() {
             </Typography>
             <Button variant="contained" startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
               onClick={handleSave} disabled={saving}
-              sx={{ textTransform: 'none', bgcolor: '#2e7d32' }}>
+              color="success" sx={{ textTransform: 'none' }}>
               {saving ? 'Saving…' : 'Save Changes'}
             </Button>
           </Box>

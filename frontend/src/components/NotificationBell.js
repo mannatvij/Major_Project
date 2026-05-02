@@ -43,7 +43,7 @@ export default function NotificationBell() {
       <Tooltip title={count ? `${count} upcoming appointment${count > 1 ? 's' : ''}` : 'No upcoming appointments'}>
         <IconButton
           onClick={(e) => setAnchor(e.currentTarget)}
-          sx={{ color: '#fff' }}
+          sx={{ color: 'text.primary' }}
           aria-label="notifications"
         >
           <Badge badgeContent={count || null} color="error" max={9}>
@@ -61,7 +61,7 @@ export default function NotificationBell() {
         PaperProps={{ sx: { width: 340, maxHeight: 420 } }}
       >
         {/* Header */}
-        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#f5f5f5' }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
           <Typography variant="subtitle2" fontWeight="bold">
             Upcoming in the next 24 h
           </Typography>
@@ -83,7 +83,7 @@ export default function NotificationBell() {
                   sx={{
                     py: 1.5, px: 2,
                     cursor: 'pointer',
-                    '&:hover': { bgcolor: '#f5f5f5' },
+                    '&:hover': { bgcolor: 'action.hover' },
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, width: '100%' }}>
@@ -105,9 +105,10 @@ export default function NotificationBell() {
             onClick={handleItemClick}
             sx={{
               px: 2, py: 1,
-              borderTop: '1px solid #e0e0e0',
+              borderTop: 1,
+              borderColor: 'divider',
               cursor: 'pointer',
-              '&:hover': { bgcolor: '#f5f5f5' },
+              '&:hover': { bgcolor: 'action.hover' },
             }}
           >
             <Typography variant="caption" color="primary.main" fontWeight={600}>

@@ -96,11 +96,19 @@ export default function DoctorAppointmentsPage() {
   ).length;
   const nextAppt     = nextTime(appointments);
 
+  // Expired pending appointments can't be acted on — exclude them from the PENDING filter and count
+  const isLivePending = (a) => a.status === 'PENDING' && new Date(a.dateTime) > now;
+
   const filtered = filter === 'ALL'
     ? appointments
-    : appointments.filter((a) => a.status === filter);
+    : filter === 'PENDING'
+      ? appointments.filter(isLivePending)
+      : appointments.filter((a) => a.status === filter);
 
-  const countOf = (s) => appointments.filter((a) => a.status === s).length;
+  const countOf = (s) =>
+    s === 'PENDING'
+      ? appointments.filter(isLivePending).length
+      : appointments.filter((a) => a.status === s).length;
 
   return (
     <Container maxWidth="lg">
@@ -115,7 +123,7 @@ export default function DoctorAppointmentsPage() {
       {error && <ErrorMessage message={error} onRetry={load} />}
 
       {/* Today's summary bar */}
-      <Paper elevation={1} sx={{ p: 2, mb: 3, display: 'flex', gap: 4, flexWrap: 'wrap', bgcolor: 'grey.50', borderRadius: 2 }}>
+      <Paper elevation={1} sx={{ p: 2, mb: 3, display: 'flex', gap: 4, flexWrap: 'wrap', bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50', borderRadius: 2 }}>
         <Box>
           <Typography variant="caption" color="text.secondary">Today's Appointments</Typography>
           <Typography variant="h5" fontWeight="bold">{todayAppts.length}</Typography>

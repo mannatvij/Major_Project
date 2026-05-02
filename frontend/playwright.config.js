@@ -25,7 +25,7 @@ module.exports = defineConfig({
     baseURL: 'http://localhost:3000',
 
     headless: false,            // VISIBLE browser – watch every action
-    slowMo: 700,                // 700ms between Playwright actions
+    slowMo: 200,                // brief pause between Playwright actions for readability
     viewport: { width: 1400, height: 900 },
 
     screenshot: 'only-on-failure',

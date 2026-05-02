@@ -1,3 +1,4 @@
+
 /**
  * Smart Healthcare System — Full Frontend E2E Test Suite
  * Covers every page, button, input, tab, chip, dialog, nav item and route.

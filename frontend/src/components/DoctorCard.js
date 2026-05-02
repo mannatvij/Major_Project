@@ -19,11 +19,28 @@ const SPEC_COLOR = {
   Pediatrics:          '#00695c',
 };
 
+const SPEC_DEGREE = {
+  'General Physician': 'MBBS, MD (General Medicine)',
+  Cardiology:          'MBBS, MD, DM (Cardiology)',
+  Neurology:           'MBBS, MD, DM (Neurology)',
+  Orthopedics:         'MBBS, MS (Orthopedics)',
+  Dermatology:         'MBBS, MD (Dermatology)',
+  Gastroenterology:    'MBBS, MD, DM (Gastroenterology)',
+  ENT:                 'MBBS, MS (ENT)',
+  Ophthalmology:       'MBBS, MS (Ophthalmology)',
+  Psychiatry:          'MBBS, MD (Psychiatry)',
+  Pediatrics:          'MBBS, MD (Pediatrics)',
+};
+
 export default function DoctorCard({ doctor }) {
   const navigate = useNavigate();
   const { id, name, specialization, experience, rating, reviewCount, fees, qualification } = doctor;
   const color   = SPEC_COLOR[specialization] ?? '#37474f';
   const initial = (name?.[0] ?? 'D').toUpperCase();
+  const displayQualification =
+    qualification && qualification.trim()
+      ? qualification
+      : SPEC_DEGREE[specialization] ?? 'MBBS';
 
   return (
     <Card
@@ -97,7 +114,7 @@ export default function DoctorCard({ doctor }) {
           <SchoolIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
           <Typography variant="body2" color="text.secondary"
             sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1 }}>
-            {qualification ?? '—'}
+            {displayQualification}
           </Typography>
         </Box>
 
