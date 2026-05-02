@@ -264,7 +264,7 @@ async function pickSlot(page, dayPrefix /* 'Today' | 'Tomorrow' */) {
   }
   return false;
 }
-
+//that is why
 // Add a fresh slot to a doctor's availability via API (so the demo always has
 // a future, accept-able slot). Authenticates as the doctor.
 async function ensureFutureSlot(request, doctor, isoDateTime) {
